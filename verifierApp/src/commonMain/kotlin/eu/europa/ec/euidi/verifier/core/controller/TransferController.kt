@@ -63,5 +63,8 @@ internal sealed class TransferStatus() {
     data object DeviceEngagementCompleted : TransferStatus()
     data object Disconnected : TransferStatus()
     data object RequestSent : TransferStatus()
+
+    /** A step worth showing in the on-screen log; does not change the connection state. */
+    data class Info(val message: String) : TransferStatus()
     data class OnResponseReceived(val receivedDocs: ReceivedDocumentsDomain) : TransferStatus()
 }

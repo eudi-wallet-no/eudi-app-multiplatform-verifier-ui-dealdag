@@ -35,4 +35,5 @@ internal data class ReceivedDocumentUi(
     val documentType: AttestationType,
     val claims: Map<ClaimItem, ClaimValue> = emptyMap(),
     val documentValidity: DocumentValidityUi,
+    val isTrusted: Boolean = false,
 ) : CommonParcelable

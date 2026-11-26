@@ -50,7 +50,8 @@ internal val domainModule = module {
             get<PlatformController>(),
             get<UuidProvider>(),
             get<ResourceProvider>(),
-            get<ConfigProvider>()
+            get<ConfigProvider>(),
+            get<TransferController>()
         )
     }
 

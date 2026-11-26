@@ -16,103 +16,199 @@
 
 package eu.europa.ec.euidi.verifier.presentation.ui.show_document
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import eu.europa.ec.euidi.verifier.presentation.component.content.ContentScreen
-import eu.europa.ec.euidi.verifier.presentation.component.content.ScreenNavigateAction
-import eu.europa.ec.euidi.verifier.presentation.component.content.ToolbarConfig
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import eu.europa.ec.euidi.verifier.presentation.component.utils.OneTimeLaunchedEffect
-import eu.europa.ec.euidi.verifier.presentation.component.utils.SPACING_EXTRA_LARGE
-import eu.europa.ec.euidi.verifier.presentation.component.utils.SPACING_MEDIUM
-import eu.europa.ec.euidi.verifier.presentation.component.utils.SPACING_SMALL
-import eu.europa.ec.euidi.verifier.presentation.component.wrap.ButtonType
-import eu.europa.ec.euidi.verifier.presentation.component.wrap.StickyBottomConfig
-import eu.europa.ec.euidi.verifier.presentation.component.wrap.StickyBottomType
-import eu.europa.ec.euidi.verifier.presentation.component.wrap.WrapCard
-import eu.europa.ec.euidi.verifier.presentation.component.wrap.WrapListItems
-import eu.europa.ec.euidi.verifier.presentation.component.wrap.WrapStickyBottomContent
-import eu.europa.ec.euidi.verifier.presentation.component.wrap.rememberButtonConfig
 import eu.europa.ec.euidi.verifier.presentation.model.ReceivedDocsHolder
 import eu.europa.ec.euidi.verifier.presentation.navigation.getFromPreviousBackStack
-import eu.europa.ec.euidi.verifier.presentation.ui.show_document.model.DocumentUi
+import eu.europa.ec.euidi.verifier.presentation.ui.home.CHEERS_ILLUSTRATION_ASPECT_RATIO
+import eu.europa.ec.euidi.verifier.presentation.ui.home.CheersIllustration
+import eu.europa.ec.euidi.verifier.presentation.ui.home.FestCheckBadge
+import eu.europa.ec.euidi.verifier.presentation.ui.home.FestCrossBadge
+import eu.europa.ec.euidi.verifier.presentation.ui.home.NO_BONG_ILLUSTRATION_ASPECT_RATIO
+import eu.europa.ec.euidi.verifier.presentation.ui.home.NoBongIllustration
+import eu.europa.ec.euidi.verifier.presentation.ui.home.FestColors
+import eu.europa.ec.euidi.verifier.presentation.ui.home.FestGoldButton
+import eu.europa.ec.euidi.verifier.presentation.ui.home.FestOrnaments
 import eu.europa.ec.euidi.verifier.presentation.utils.Constants
 import eudiverifier.verifierapp.generated.resources.Res
-import eudiverifier.verifierapp.generated.resources.generic_ok
-import eudiverifier.verifierapp.generated.resources.show_documents_screen_document_header
-import eudiverifier.verifierapp.generated.resources.show_documents_screen_num_of_docs_description
-import eudiverifier.verifierapp.generated.resources.show_documents_screen_title
-import kotlinx.coroutines.flow.Flow
+import eudiverifier.verifierapp.generated.resources.drikkebong_accepted_title
+import eudiverifier.verifierapp.generated.resources.drikkebong_back_to_start
+import eudiverifier.verifierapp.generated.resources.drikkebong_rejected_invalid
+import eudiverifier.verifierapp.generated.resources.drikkebong_none_left_subtitle
+import eudiverifier.verifierapp.generated.resources.drikkebong_none_left_title
+import eudiverifier.verifierapp.generated.resources.drikkebong_rejected_not_trusted
+import eudiverifier.verifierapp.generated.resources.drikkebong_rejected_title
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
+/**
+ * Result screen after a wallet has shared its drikkebong, in the same festive design as the
+ * welcome screen: "Drikkebong akseptert. Party on!" or why it was not accepted.
+ */
 @Composable
 internal fun ShowDocumentsScreen(
     navController: NavController,
     viewModel: ShowDocumentsViewModel = koinViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val verdict = state.verdict
 
-    ContentScreen(
-        navigatableAction = ScreenNavigateAction.BACKABLE,
-        toolBarConfig = ToolbarConfig(
-            title = stringResource(Res.string.show_documents_screen_title)
-        ),
-        onBack = {
-            viewModel.setEvent(ShowDocumentViewModelContract.Event.OnBackClick)
-        },
-        stickyBottom = { stickyBottomPaddings ->
-            StickyBottomSection(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(stickyBottomPaddings),
-                enabled = !state.isLoading,
-                onClick = {
-                    viewModel.setEvent(ShowDocumentViewModelContract.Event.OnDoneClick)
-                }
-            )
-        }
-    ) { padding ->
-        Content(
-            state = state,
-            effectFlow = viewModel.effect,
-            onNavigationRequested = { navigationEffect ->
-                handleNavigationEffect(
-                    navController = navController,
-                    navigationEffect = navigationEffect
-                )
-            },
-            paddingValues = padding
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(FestColors.Background)
+    ) {
+        FestOrnaments(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(end = 16.dp)
+                .size(width = 200.dp, height = 130.dp)
         )
 
-        OneTimeLaunchedEffect {
-            navController
-                .getFromPreviousBackStack<ReceivedDocsHolder>(Constants.RECEIVED_DOCUMENTS)
-                ?.let { docsHolder ->
-                    viewModel.setEvent(
-                        ShowDocumentViewModelContract.Event.Init(
-                            items = docsHolder.items,
-                        )
+        if (verdict != null) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .safeDrawingPadding()
+                    .padding(horizontal = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Spacer(modifier = Modifier.weight(0.5f))
+
+                if (verdict == DrikkebongVerdict.ACCEPTED) {
+                    FestCheckBadge(modifier = Modifier.size(160.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text(
+                        text = stringResource(Res.string.drikkebong_accepted_title),
+                        color = FestColors.DarkGreen,
+                        fontSize = 40.sp,
+                        lineHeight = 48.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                    )
+                } else {
+                    FestCrossBadge(modifier = Modifier.size(160.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text(
+                        text = stringResource(
+                            if (verdict == DrikkebongVerdict.MISSING) Res.string.drikkebong_none_left_title
+                            else Res.string.drikkebong_rejected_title
+                        ),
+                        color = FestColors.Red,
+                        fontSize = 36.sp,
+                        lineHeight = 44.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = stringResource(verdict.reason()),
+                        color = FestColors.DarkGreen,
+                        fontSize = 20.sp,
+                        lineHeight = 30.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.widthIn(max = 480.dp),
                     )
                 }
+
+                Spacer(modifier = Modifier.weight(0.6f))
+
+                when (verdict) {
+                    DrikkebongVerdict.ACCEPTED -> CheersIllustration(
+                        modifier = Modifier
+                            .widthIn(max = 480.dp)
+                            .fillMaxWidth()
+                            .aspectRatio(CHEERS_ILLUSTRATION_ASPECT_RATIO)
+                    )
+
+                    DrikkebongVerdict.MISSING -> NoBongIllustration(
+                        modifier = Modifier
+                            .widthIn(max = 480.dp)
+                            .fillMaxWidth()
+                            .aspectRatio(NO_BONG_ILLUSTRATION_ASPECT_RATIO)
+                    )
+
+                    else -> Unit
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                FestGoldButton(
+                    text = stringResource(Res.string.drikkebong_back_to_start),
+                    enabled = true,
+                    onClick = {
+                        viewModel.setEvent(ShowDocumentViewModelContract.Event.OnDoneClick)
+                    },
+                    modifier = Modifier
+                        .widthIn(max = 560.dp)
+                        .fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+            }
         }
     }
+
+    NavigationBackHandler(
+        state = rememberNavigationEventState(NavigationEventInfo.None),
+        isBackEnabled = true,
+        onBackCompleted = { viewModel.setEvent(ShowDocumentViewModelContract.Event.OnBackClick) }
+    )
+
+    LaunchedEffect(Unit) {
+        viewModel.effect.collect { effect ->
+            when (effect) {
+                is ShowDocumentViewModelContract.Effect.Navigation ->
+                    handleNavigationEffect(navController, effect)
+            }
+        }
+    }
+
+    OneTimeLaunchedEffect {
+        navController
+            .getFromPreviousBackStack<ReceivedDocsHolder>(Constants.RECEIVED_DOCUMENTS)
+            ?.let { docsHolder ->
+                viewModel.setEvent(
+                    ShowDocumentViewModelContract.Event.Init(
+                        items = docsHolder.items,
+                    )
+                )
+            }
+    }
+}
+
+private fun DrikkebongVerdict.reason() = when (this) {
+    DrikkebongVerdict.ACCEPTED,
+    DrikkebongVerdict.MISSING -> Res.string.drikkebong_none_left_subtitle
+
+    DrikkebongVerdict.INVALID -> Res.string.drikkebong_rejected_invalid
+    DrikkebongVerdict.NOT_TRUSTED -> Res.string.drikkebong_rejected_not_trusted
 }
 
 private fun handleNavigationEffect(
@@ -126,129 +222,5 @@ private fun handleNavigationEffect(
                 inclusive = navigationEffect.inclusive
             )
         }
-    }
-}
-
-@Composable
-private fun StickyBottomSection(
-    modifier: Modifier = Modifier,
-    enabled: Boolean,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = modifier
-    ) {
-        WrapStickyBottomContent(
-            stickyBottomModifier = Modifier.fillMaxWidth(),
-            stickyBottomConfig = StickyBottomConfig(
-                type = StickyBottomType.OneButton(
-                    config = rememberButtonConfig(
-                        type = ButtonType.PRIMARY,
-                        onClick = onClick,
-                        enabled = enabled,
-                        content = {
-                            Text(
-                                text = stringResource(
-                                    Res.string.generic_ok
-                                )
-                            )
-                        }
-                    )
-                )
-            )
-        )
-    }
-}
-
-@Composable
-private fun Content(
-    state: ShowDocumentViewModelContract.State,
-    effectFlow: Flow<ShowDocumentViewModelContract.Effect>,
-    onNavigationRequested: (ShowDocumentViewModelContract.Effect.Navigation) -> Unit,
-    paddingValues: PaddingValues
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(paddingValues)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(SPACING_EXTRA_LARGE.dp),
-    ) {
-        DocumentsHeader(
-            size = state.items.size,
-        )
-
-        state.items.forEach { document ->
-            DocumentDetails(
-                document = document,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        effectFlow.collect { effect ->
-            when (effect) {
-                is ShowDocumentViewModelContract.Effect.Navigation -> onNavigationRequested(effect)
-            }
-        }
-    }
-}
-
-@Composable
-private fun DocumentsHeader(
-    size: Int,
-) {
-    WrapCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(SPACING_MEDIUM.dp),
-            verticalArrangement = Arrangement.spacedBy(SPACING_MEDIUM.dp),
-            horizontalAlignment = Alignment.Start
-        ) {
-            Text(
-                text = buildAnnotatedString {
-                    append(stringResource(Res.string.show_documents_screen_num_of_docs_description))
-                    append(": ")
-                    append(size.toString())
-                },
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-    }
-}
-
-@Composable
-private fun DocumentDetails(
-    document: DocumentUi,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(SPACING_MEDIUM.dp)
-    ) {
-        Text(
-            text = buildAnnotatedString {
-                append(stringResource(Res.string.show_documents_screen_document_header))
-                append(": ")
-                append(document.docType)
-            },
-            style = MaterialTheme.typography.labelLarge
-        )
-
-        WrapListItems(
-            modifier = Modifier.fillMaxWidth(),
-            items = document.validityInfo,
-            onItemClick = null,
-            mainContentVerticalPadding = SPACING_SMALL.dp
-        )
-
-        WrapListItems(
-            modifier = Modifier.fillMaxWidth(),
-            items = document.uiClaims,
-            onItemClick = null,
-            mainContentVerticalPadding = SPACING_MEDIUM.dp
-        )
     }
 }

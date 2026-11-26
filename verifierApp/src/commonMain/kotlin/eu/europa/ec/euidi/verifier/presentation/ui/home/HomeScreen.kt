@@ -16,57 +16,54 @@
 
 package eu.europa.ec.euidi.verifier.presentation.ui.home
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import eu.europa.ec.euidi.verifier.presentation.component.AppIcons
-import eu.europa.ec.euidi.verifier.presentation.component.ListItemDataUi
-import eu.europa.ec.euidi.verifier.presentation.component.content.ContentScreen
-import eu.europa.ec.euidi.verifier.presentation.component.content.ScreenNavigateAction
 import eu.europa.ec.euidi.verifier.presentation.component.utils.LifecycleEffect
-import eu.europa.ec.euidi.verifier.presentation.component.utils.SPACING_EXTRA_LARGE
-import eu.europa.ec.euidi.verifier.presentation.component.utils.SPACING_MEDIUM
-import eu.europa.ec.euidi.verifier.presentation.component.utils.SPACING_SMALL
-import eu.europa.ec.euidi.verifier.presentation.component.wrap.ButtonType
-import eu.europa.ec.euidi.verifier.presentation.component.wrap.StickyBottomConfig
-import eu.europa.ec.euidi.verifier.presentation.component.wrap.StickyBottomType
 import eu.europa.ec.euidi.verifier.presentation.component.wrap.WrapIconButton
-import eu.europa.ec.euidi.verifier.presentation.component.wrap.WrapImage
-import eu.europa.ec.euidi.verifier.presentation.component.wrap.WrapListItem
-import eu.europa.ec.euidi.verifier.presentation.component.wrap.WrapStickyBottomContent
-import eu.europa.ec.euidi.verifier.presentation.component.wrap.rememberButtonConfig
 import eu.europa.ec.euidi.verifier.presentation.model.RequestedDocsHolder
 import eu.europa.ec.euidi.verifier.presentation.navigation.getFromCurrentBackStack
 import eu.europa.ec.euidi.verifier.presentation.navigation.saveToCurrentBackStack
 import eu.europa.ec.euidi.verifier.presentation.ui.home.HomeViewModelContract.Effect
 import eu.europa.ec.euidi.verifier.presentation.ui.home.HomeViewModelContract.Event
-import eu.europa.ec.euidi.verifier.presentation.ui.home.HomeViewModelContract.State
 import eu.europa.ec.euidi.verifier.presentation.utils.Constants
 import eudiverifier.verifierapp.generated.resources.Res
 import eudiverifier.verifierapp.generated.resources.home_screen_nfc_title
 import eudiverifier.verifierapp.generated.resources.home_screen_sticky_bottom_text
-import kotlinx.coroutines.flow.Flow
+import eudiverifier.verifierapp.generated.resources.home_screen_subtitle
+import eudiverifier.verifierapp.generated.resources.home_screen_title
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
+/**
+ * Welcome screen for Digdir FEL Loen 2026, styled after the MinID+ Christmas design: cream
+ * background, baubles, a festive illustration and one gold button that starts the verification.
+ */
 @Composable
 internal fun HomeScreen(
     navController: NavController,
@@ -74,34 +71,91 @@ internal fun HomeScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    ContentScreen(
-        isLoading = state.isLoading,
-        topBar = {
-            TopBar(onMenuClick = { viewModel.setEvent(Event.OnMenuClick) })
-        },
-        navigatableAction = ScreenNavigateAction.NONE,
-        onBack = { viewModel.setEvent(Event.OnBackClicked) },
-        stickyBottom = { stickyBottomPaddings ->
-            StickyBottomSection(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(stickyBottomPaddings),
-                enabled = state.isStickyButtonEnabled,
-                onClick = { viewModel.setEvent(Event.OnStickyButtonClicked) }
-            )
-        },
-        contentErrorConfig = state.error,
-    ) { padding ->
-        Content(
-            state = state,
-            onEventSend = viewModel::setEvent,
-            effectFlow = viewModel.effect,
-            onNavigationRequested = { navigationEffect ->
-                handleNavigationEffect(navigationEffect, navController)
-            },
-            paddingValues = padding,
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(FestColors.Background)
+    ) {
+        FestOrnaments(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(end = 16.dp)
+                .size(width = 200.dp, height = 130.dp)
         )
 
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .safeDrawingPadding()
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                WrapIconButton(
+                    iconData = AppIcons.Menu,
+                    modifier = Modifier.align(Alignment.CenterStart),
+                    customTint = FestColors.DarkGreen,
+                    onClick = { viewModel.setEvent(Event.OnMenuClick) },
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(0.6f))
+
+            Text(
+                text = stringResource(Res.string.home_screen_subtitle),
+                color = FestColors.DarkGreen,
+                fontSize = 32.sp,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = stringResource(Res.string.home_screen_title),
+                color = FestColors.Navy,
+                fontSize = 52.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+            )
+
+            Spacer(modifier = Modifier.weight(0.6f))
+
+            Text(
+                text = stringResource(Res.string.home_screen_nfc_title),
+                color = FestColors.DarkGreen,
+                fontSize = 20.sp,
+                lineHeight = 30.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(max = 480.dp),
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            FestIllustration(
+                modifier = Modifier
+                    .widthIn(max = 560.dp)
+                    .fillMaxWidth()
+                    .aspectRatio(FEST_ILLUSTRATION_ASPECT_RATIO)
+            )
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            FestGoldButton(
+                text = stringResource(Res.string.home_screen_sticky_bottom_text),
+                enabled = state.isStickyButtonEnabled,
+                onClick = { viewModel.setEvent(Event.OnStickyButtonClicked) },
+                modifier = Modifier
+                    .widthIn(max = 560.dp)
+                    .fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.effect.collect { effect ->
+            when (effect) {
+                is Effect.Navigation -> handleNavigationEffect(effect, navController)
+            }
+        }
     }
 
     LifecycleEffect(
@@ -111,24 +165,6 @@ internal fun HomeScreen(
         val documents = navController
             .getFromCurrentBackStack<RequestedDocsHolder>(Constants.REQUESTED_DOCUMENTS)
         viewModel.setEvent(Event.OnResume(docs = documents?.items))
-    }
-}
-
-@Composable
-private fun TopBar(
-    onMenuClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(all = SPACING_SMALL.dp)
-    ) {
-        WrapIconButton(
-            iconData = AppIcons.Menu,
-            modifier = Modifier.align(Alignment.CenterStart),
-            customTint = MaterialTheme.colorScheme.onSurface,
-            onClick = onMenuClick,
-        )
     }
 }
 
@@ -148,103 +184,5 @@ private fun handleNavigationEffect(
             )
             navController.navigate(route = navigationEffect.screen)
         }
-    }
-}
-
-@Composable
-private fun StickyBottomSection(
-    modifier: Modifier = Modifier,
-    enabled: Boolean,
-    onClick: () -> Unit,
-) {
-    Row(modifier = modifier) {
-        WrapStickyBottomContent(
-            stickyBottomModifier = Modifier.fillMaxWidth(),
-            stickyBottomConfig = StickyBottomConfig(
-                type = StickyBottomType.OneButton(
-                    config = rememberButtonConfig(
-                        type = ButtonType.PRIMARY,
-                        enabled = enabled,
-                        onClick = onClick,
-                        content = {
-                            Text(text = stringResource(Res.string.home_screen_sticky_bottom_text))
-                        }
-                    )
-                )
-            )
-        )
-    }
-}
-
-@Composable
-private fun Content(
-    state: State,
-    onEventSend: (Event) -> Unit,
-    effectFlow: Flow<Effect>,
-    onNavigationRequested: (Effect.Navigation) -> Unit,
-    paddingValues: PaddingValues,
-) {
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(paddingValues),
-    ) {
-        ScreenTitle(
-            title = state.screenTitle,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        NfcSection(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(SPACING_EXTRA_LARGE.dp)
-        )
-    }
-
-    LaunchedEffect(Unit) {
-        effectFlow.collect { effect ->
-            when (effect) {
-                is Effect.Navigation -> onNavigationRequested(effect)
-            }
-        }
-    }
-}
-
-@Composable
-private fun ScreenTitle(
-    title: String,
-    modifier: Modifier = Modifier
-) {
-    Text(
-        text = title,
-        modifier = modifier,
-        color = MaterialTheme.colorScheme.onSurface,
-        textAlign = TextAlign.Center,
-        style = MaterialTheme.typography.headlineLarge,
-    )
-}
-
-@Composable
-private fun NfcSection(
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(
-            space = SPACING_SMALL.dp,
-            alignment = Alignment.CenterVertically
-        ),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = stringResource(Res.string.home_screen_nfc_title),
-            color = MaterialTheme.colorScheme.onSurface,
-            style = MaterialTheme.typography.headlineSmall,
-        )
-        WrapImage(
-            modifier = Modifier.padding(SPACING_MEDIUM.dp),
-            iconData = AppIcons.Nfc
-        )
     }
 }

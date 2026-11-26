@@ -17,6 +17,7 @@
 package eu.europa.ec.euidi.verifier.presentation.ui.transfer_status
 
 import androidx.lifecycle.viewModelScope
+import eu.europa.ec.euidi.verifier.core.utils.Constants
 import eu.europa.ec.euidi.verifier.core.controller.TransferStatus
 import eu.europa.ec.euidi.verifier.core.provider.ResourceProvider
 import eu.europa.ec.euidi.verifier.domain.interactor.TransferStatusInteractor
@@ -47,7 +48,11 @@ internal sealed interface TransferStatusViewModelContract {
         val requestedDocs: List<RequestedDocumentUi> = emptyList(),
         val hasPermissions: Boolean? = null,
         val permissionsRequestInProgress: Boolean = false,
-        val engagementStarted: Boolean = false
+        val engagementStarted: Boolean = false,
+        /** Every status message so far, oldest first, so problems can be read on screen. */
+        val statusLog: List<String> = emptyList(),
+        /** The transfer ended without a response; the log stays visible until the user leaves. */
+        val failed: Boolean = false,
     ) : UiState
 
     sealed interface Event : UiEvent {
@@ -59,6 +64,7 @@ internal sealed interface TransferStatusViewModelContract {
         data object OnCancelClick : Event
         data object OnBackClick : Event
         data object OpenAppSettings : Event
+        data object OnNfcRetry : Event
     }
 
     sealed interface Effect : UiEffect {
@@ -68,6 +74,9 @@ internal sealed interface TransferStatusViewModelContract {
         data object OpenAppSettings : Effect
         sealed interface Navigation : Effect {
             data object GoBack : Navigation
+
+            /** A wallet was held against the tablet after a failure: start a new transfer. */
+            data object RetryOverNfc : Navigation
             data class NavigateToShowDocumentsScreen(
                 val receivedDocuments: List<ReceivedDocumentUi>,
             ) : Navigation
@@ -138,6 +147,10 @@ internal class TransferStatusViewModel(
                 }
             }
 
+            is TransferStatusViewModelContract.Event.OnNfcRetry -> {
+                setEffect { TransferStatusViewModelContract.Effect.Navigation.RetryOverNfc }
+            }
+
             is TransferStatusViewModelContract.Event.OpenAppSettings -> {
                 setEffect {
                     TransferStatusViewModelContract.Effect.OpenAppSettings
@@ -179,6 +192,11 @@ internal class TransferStatusViewModel(
                 )
             }
 
+            appendLog(
+                if (qrCode == Constants.Generic.NFC_ENGAGEMENT) "Lommebok funnen over NFC"
+                else "QR-kode skanna"
+            )
+
             transferStatusInteractor.prepareConnection()
 
             transferStatusInteractor.getConnectionStatus(
@@ -191,20 +209,38 @@ internal class TransferStatusViewModel(
         }
     }
 
+    private var responseReceived = false
+
     private fun handleStatus(status: TransferStatus) {
+        val message = status.toUiMessage(resourceProvider)
         setState {
             copy(
-                connectionStatus = status.toUiMessage(resourceProvider)
+                connectionStatus = if (status is TransferStatus.Info) connectionStatus else message,
+                statusLog = statusLog + message,
             )
         }
 
         when (status) {
             is TransferStatus.Error,
             is TransferStatus.Disconnected -> {
-                goBack()
+                // Handle the end of a transfer once: the library reports an error and then a
+                // disconnect, and a disconnect after the response is the normal end
+                if (uiState.value.failed || responseReceived) return
+                setState { copy(failed = true) }
+                // Stay on screen so the log can be read; the button then goes back
+                viewModelScope.launch {
+                    stopProximity()
+                    // Holding the phone against the tablet again starts a new attempt
+                    transferStatusInteractor.enableNfcEngagement(
+                        onTagDiscovered = {
+                            setEvent(TransferStatusViewModelContract.Event.OnNfcRetry)
+                        }
+                    )
+                }
             }
 
             is TransferStatus.OnResponseReceived -> {
+                responseReceived = true
                 viewModelScope.launch {
                     showDocumentResults(receivedDocs = status.receivedDocs)
                 }
@@ -225,6 +261,10 @@ internal class TransferStatusViewModel(
                 receivedDocuments = transformedDocuments,
             )
         }
+    }
+
+    private fun appendLog(message: String) {
+        setState { copy(statusLog = statusLog + message) }
     }
 
     private fun goBack() {
@@ -250,8 +290,9 @@ internal class TransferStatusViewModel(
 
             is TransferStatus.OnResponseReceived -> Res.string.transfer_status_screen_status_on_response_received
             is TransferStatus.RequestSent -> Res.string.transfer_status_screen_status_request_sent
+            is TransferStatus.Info -> return message
         }
 
-        return resourceProvider.getSharedString(resource, arguments)
+        return resourceProvider.getSharedString(resource, *arguments.toTypedArray())
     }
 }

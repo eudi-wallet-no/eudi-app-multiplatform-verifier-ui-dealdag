@@ -18,9 +18,7 @@ package eu.europa.ec.euidi.verifier.core.controller
 
 import android.content.Context
 import android.util.Base64
-import androidx.core.content.ContextCompat
 import com.android.identity.android.mdoc.deviceretrieval.VerificationHelper
-import com.android.identity.android.mdoc.transport.DataTransportOptions
 import eu.europa.ec.eudi.verifier.core.EudiVerifier
 import eu.europa.ec.eudi.verifier.core.EudiVerifierConfig
 import eu.europa.ec.eudi.verifier.core.request.DeviceRequest
@@ -69,12 +67,10 @@ internal class AndroidTransferController(
     private lateinit var eudiVerifier: EudiVerifier
     private var listener: TransferEvent.Listener? = null
     private var scope: CoroutineScope? = null
-    private var connectionMethods: List<MdocConnectionMethod> = emptyList()
-    private var dataTransportOptions: DataTransportOptions = DataTransportOptions.Builder().build()
 
     private val _statuses = MutableSharedFlow<TransferStatus>(
         replay = 1,
-        extraBufferCapacity = 8,
+        extraBufferCapacity = 64,
     )
     private val statuses: SharedFlow<TransferStatus> = _statuses.asSharedFlow()
 
@@ -117,11 +113,6 @@ internal class AndroidTransferController(
         transferManager = eudiVerifier.createTransferManager {
             addEngagementMethod(TransferConfig.EngagementMethod.QR, connectionMethods)
         }
-        this.connectionMethods = connectionMethods
-        dataTransportOptions = DataTransportOptions.Builder()
-            .setBleUseL2CAP(useL2Cap)
-            .setBleClearCache(clearBleCache)
-            .build()
 
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     }
@@ -130,7 +121,15 @@ internal class AndroidTransferController(
         if (qrCode == Constants.Generic.NFC_ENGAGEMENT) {
             startNfcEngagement()
         } else {
-            transferManager?.startQRDeviceEngagement(qrCode)
+            _statuses.tryEmit(TransferStatus.Info("Les engagement frå QR-koden"))
+            try {
+                transferManager?.startQRDeviceEngagement(qrCode)
+            } catch (t: Throwable) {
+                // A malformed QR code must not crash the app
+                _statuses.tryEmit(
+                    TransferStatus.Error("Ugyldig QR-kode: ${t::class.simpleName}: ${t.localizedMessage}")
+                )
+            }
         }
     }
 
@@ -149,53 +148,43 @@ internal class AndroidTransferController(
      */
     private fun startNfcEngagement() {
         val manager = transferManager ?: return
-        val tag = nfcEngagement.takePendingTag()
-        if (tag == null) {
+        val engagement = nfcEngagement.takePendingEngagement()
+        if (engagement == null) {
+            nfcEngagement.showStatus(NFC_TAG_LOST_MESSAGE)
             _statuses.tryEmit(TransferStatus.Error(NFC_TAG_LOST_MESSAGE))
             return
         }
+        _statuses.tryEmit(
+            TransferStatus.Info("Engagement lese over NFC (${engagement.tagTechs})")
+        )
         try {
-            val helper = manager.attachNfcVerificationHelper()
-            scope?.launch(Dispatchers.IO) {
-                try {
-                    helper.nfcProcessOnTagDiscovered(tag)
-                } catch (t: Throwable) {
-                    _statuses.tryEmit(
-                        TransferStatus.Error(t.localizedMessage ?: NFC_TAG_LOST_MESSAGE)
-                    )
-                }
-            }
+            manager.takeOverNfcEngagement(engagement)
         } catch (t: Throwable) {
+            nfcEngagement.showStatus("NFC-feil: ${t.localizedMessage}")
             _statuses.tryEmit(
-                TransferStatus.Error(t.localizedMessage ?: resourceProvider.genericErrorMessage())
+                TransferStatus.Error(
+                    "${t::class.simpleName}: ${t.localizedMessage ?: resourceProvider.genericErrorMessage()}"
+                )
             )
         }
     }
 
     /**
-     * Builds a [VerificationHelper] that reports to the transfer manager's own listener, and puts
-     * it in the transfer manager, so its request and response handling works as for QR.
+     * Puts the [VerificationHelper] that already did the NFC engagement into the transfer manager
+     * (verifier-core 0.1.0 has no NFC support of its own), and plays back what the wallet answered
+     * to the manager's own listener, which then connects over BLE and reports events as for QR.
      */
-    private fun TransferManager.attachNfcVerificationHelper(): VerificationHelper {
+    private fun TransferManager.takeOverNfcEngagement(engagement: PendingNfcEngagement) {
         val managerClass = this::class.java
         val listener = managerClass.getDeclaredField("responseListener")
             .apply { isAccessible = true }
             .get(this) as VerificationHelper.Listener
 
-        val helper = VerificationHelper.Builder(
-            context,
-            listener,
-            ContextCompat.getMainExecutor(context)
-        )
-            .setDataTransportOptions(dataTransportOptions)
-            .setNegotiatedHandoverConnectionMethods(connectionMethods)
-            .build()
-
         managerClass.getDeclaredField("verificationHelper")
             .apply { isAccessible = true }
-            .set(this, helper)
+            .set(this, engagement.helper)
 
-        return helper
+        engagement.listener.attach(listener)
     }
 
     override fun sendRequest(
@@ -219,8 +208,9 @@ internal class AndroidTransferController(
                         }
 
                         is TransferEvent.Connected -> {
-                            transferManager?.sendRequest(request)
                             tryEmit(TransferStatus.Connected)
+                            tryEmit(TransferStatus.Info("Ber om: ${requestedDocs.describe()}"))
+                            transferManager?.sendRequest(request)
                         }
 
                         is TransferEvent.DeviceEngagementCompleted -> {
@@ -234,8 +224,9 @@ internal class AndroidTransferController(
                         is TransferEvent.Error -> {
                             tryEmit(
                                 TransferStatus.Error(
-                                    event.error.localizedMessage
-                                        ?: resourceProvider.genericErrorMessage()
+                                    "${event.error::class.simpleName}: " +
+                                            (event.error.localizedMessage
+                                                ?: resourceProvider.genericErrorMessage())
                                 )
                             )
                         }
@@ -283,6 +274,15 @@ internal class AndroidTransferController(
                                     }
 
                                     tryEmit(
+                                        TransferStatus.Info(
+                                            "Mottok ${receivedDocuments.size} dokument " +
+                                                    "(status ${event.response.deviceResponse.status})"
+                                        )
+                                    )
+                                    receivedDocuments.forEach { doc ->
+                                        tryEmit(TransferStatus.Info(doc.describe()))
+                                    }
+                                    tryEmit(
                                         TransferStatus.OnResponseReceived(
                                             receivedDocs = ReceivedDocumentsDomain(documents = receivedDocuments)
                                         )
@@ -317,6 +317,24 @@ internal class AndroidTransferController(
         transferManager = null
         scope?.cancel()
         scope = null
+    }
+
+    private fun List<RequestedDocumentUi>.describe(): String =
+        joinToString { doc ->
+            "${doc.documentType.docType} (${doc.claims.joinToString { it.label }})"
+        }
+
+    private fun ReceivedDocumentDomain.describe(): String {
+        fun Boolean?.yesNo() = when (this) {
+            true -> "ok"
+            false -> "FEIL"
+            null -> "ukjend"
+        }
+        return "$docType: utferdarsignatur ${validity.isIssuerSignatureValid.yesNo()}, " +
+                "einingssignatur ${validity.isDeviceSignatureValid.yesNo()}, " +
+                "dataintegritet ${validity.isDataIntegrityIntact.yesNo()}, " +
+                "tillit ${if (isTrusted) "ok" else "IKKJE STOLT PÅ"}, " +
+                "${claims.size} claim"
     }
 
     private companion object {

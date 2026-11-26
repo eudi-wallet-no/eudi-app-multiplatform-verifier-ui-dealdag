@@ -24,91 +24,164 @@ import android.nfc.Tag
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import androidx.core.content.ContextCompat
+import com.android.identity.android.mdoc.deviceretrieval.VerificationHelper
+import com.android.identity.android.mdoc.transport.DataTransportOptions
+import org.multipaz.mdoc.connectionmethod.MdocConnectionMethod
+import org.multipaz.mdoc.connectionmethod.MdocConnectionMethodBle
+import org.multipaz.mdoc.role.MdocRole
+import org.multipaz.util.UUID
+import android.widget.Toast
 import java.lang.ref.WeakReference
 
 /**
  * Keeps the NFC reader mode used for ISO/IEC 18013-5 NFC device engagement.
  *
- * The tablet polls for the wallet (which emulates an NFC tag) while the scan screen is shown. The
- * first tag found is kept as the pending tag, and reader mode stays on so the tag stays usable
- * until [AndroidTransferController] has done the engagement with it.
+ * Reader mode is on whenever the app is in the foreground. That also turns off card emulation on
+ * this device, so wallet apps installed on the tablet cannot answer a phone held against it (they
+ * would otherwise make Android show "choose an app").
  *
- * This is a singleton: the scan screen and the transfer screen each get their own
- * [TransferController], and both have to see the same pending tag.
+ * A screen that can start a verification registers itself with [enable]. When a wallet is found,
+ * the NFC engagement and handover (ISO/IEC 18013-5, 8.2.2.1) are done right away, while the phone
+ * is surely still in the field: by the time the transfer screen is ready the NFC link is often
+ * gone (TagLostException). What the wallet answers is kept in a [PendingNfcEngagement] and played
+ * back to the transfer manager when [AndroidTransferController] takes it over.
+ *
+ * This is a singleton: each screen gets its own [TransferController], and all of them have to see
+ * the same pending tag.
  */
 internal class AndroidNfcEngagement(context: Context) : Application.ActivityLifecycleCallbacks {
+
+    private val appContext: Context = context.applicationContext
 
     private val nfcAdapter: NfcAdapter? = NfcAdapter.getDefaultAdapter(context)
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private var resumedActivity: WeakReference<Activity>? = null
-    private var readerModeWanted = false
     private var onTagDiscovered: (() -> Unit)? = null
+    private var readerModeAnnounced = false
 
     @Volatile
-    private var pendingTag: Tag? = null
+    private var pending: PendingNfcEngagement? = null
 
     init {
         (context.applicationContext as Application).registerActivityLifecycleCallbacks(this)
     }
 
     /**
-     * Starts polling for a wallet. Returns false when the device has no NFC or it is turned off.
+     * Calls [onTagDiscovered] once, when a wallet is held against the device. Returns false when
+     * the device has no NFC or it is turned off.
      */
     fun enable(onTagDiscovered: () -> Unit): Boolean {
         if (nfcAdapter?.isEnabled != true) return false
         this.onTagDiscovered = onTagDiscovered
-        pendingTag = null
-        readerModeWanted = true
-        resumedActivity?.get()?.let(::startReaderMode)
+        // A screen that starts listening will not take over an older engagement: drop it, or it
+        // would block every new tap
+        dropPending()
+        // Make sure reader mode is on, also when it was lost without the activity pausing
+        resumedActivity?.get()?.let { activity -> mainHandler.post { startReaderMode(activity) } }
         return true
     }
 
-    /** Stops polling, unless a tag was found and is waiting to be engaged. */
+    /** Stops waiting for a wallet. Reader mode itself stays on while the app is open. */
     fun disable() {
         onTagDiscovered = null
-        if (pendingTag == null) stopReaderMode()
     }
 
-    /** Hands over the tag found by [enable], at most once. */
-    fun takePendingTag(): Tag? = pendingTag.also { pendingTag = null }
+    /** Hands over the engagement done after [enable], at most once. */
+    fun takePendingEngagement(): PendingNfcEngagement? = pending.also { pending = null }
 
-    /** Stops polling and forgets any pending tag. */
+    /** Stops waiting for a wallet and drops an engagement nobody took over. */
     fun reset() {
         onTagDiscovered = null
-        pendingTag = null
-        stopReaderMode()
+        dropPending()
+    }
+
+    private fun dropPending() {
+        pending?.let { runCatching { it.helper.disconnect() } }
+        pending = null
     }
 
     private fun startReaderMode(activity: Activity) {
-        nfcAdapter?.enableReaderMode(
-            activity,
-            { tag -> handleTag(tag) },
-            NfcAdapter.FLAG_READER_NFC_A or
-                    NfcAdapter.FLAG_READER_NFC_B or
-                    NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK,
-            null
-        )
-    }
-
-    private fun stopReaderMode() {
-        readerModeWanted = false
-        mainHandler.post {
-            resumedActivity?.get()?.let { nfcAdapter?.disableReaderMode(it) }
+        if (nfcAdapter?.isEnabled != true) return
+        try {
+            nfcAdapter.enableReaderMode(
+                activity,
+                { tag -> handleTag(tag) },
+                NfcAdapter.FLAG_READER_NFC_A or
+                        NfcAdapter.FLAG_READER_NFC_B or
+                        NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK,
+                // Android's frequent presence checks can collide with the handover exchange and
+                // end it with TagLostException, so check far less often than the default
+                Bundle().apply {
+                    putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, PRESENCE_CHECK_DELAY_MS)
+                }
+            )
+            if (!readerModeAnnounced) {
+                readerModeAnnounced = true
+                showStatus("NFC-lesar aktiv: hald telefonen mot baksida av nettbrettet")
+            }
+        } catch (t: Throwable) {
+            showStatus("NFC-lesar starta ikkje: ${t.message}")
         }
     }
 
     private fun handleTag(tag: Tag) {
-        val callback = onTagDiscovered ?: return
-        if (pendingTag != null) return
-        pendingTag = tag
+        val techs = tag.techList.joinToString { it.substringAfterLast('.') }
+        val callback = onTagDiscovered
+        if (callback == null || pending != null) {
+            showStatus("Gå til framsida for å verifisere ein ny drikkebong")
+            return
+        }
+        if (!tag.techList.contains(android.nfc.tech.IsoDep::class.java.name)) {
+            showStatus("NFC: fann $techs, men det er ikkje ei lommebok (manglar IsoDep)")
+            return
+        }
+        showStatus("NFC: fann lommebok, koplar til ...")
         onTagDiscovered = null
+
+        val listener = BufferingListener(mainHandler)
+        val engagement = PendingNfcEngagement(
+            helper = VerificationHelper.Builder(
+                appContext,
+                listener,
+                ContextCompat.getMainExecutor(appContext)
+            )
+                .setDataTransportOptions(DataTransportOptions.Builder().build())
+                .setNegotiatedHandoverConnectionMethods(readerConnectionMethods())
+                .build(),
+            listener = listener,
+            tagTechs = techs,
+        )
+        pending = engagement
+
+        // Do the engagement now, while the phone is in the field, but on a thread of its own: if
+        // it hangs (phone moved away mid-exchange), the NFC callback thread must stay free, or
+        // Android delivers no more taps until the app restarts
+        Thread({
+            try {
+                engagement.helper.nfcProcessOnTagDiscovered(tag)
+            } catch (t: Throwable) {
+                listener.onError(t)
+            }
+        }, "nfc-engagement").apply { isDaemon = true }.start()
         mainHandler.post(callback)
+    }
+
+    /** Short on-screen status, so NFC problems can be seen without a debugger. */
+    fun showStatus(message: String) {
+        mainHandler.post {
+            Toast.makeText(appContext, message, Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun onActivityResumed(activity: Activity) {
         resumedActivity = WeakReference(activity)
-        if (readerModeWanted) startReaderMode(activity)
+        // Android only turns on reader mode for an activity it sees as resumed, which it does not
+        // yet while these callbacks run, so wait until onResume has finished.
+        mainHandler.post {
+            if (resumedActivity?.get() === activity) startReaderMode(activity)
+        }
     }
 
     override fun onActivityPaused(activity: Activity) {
@@ -123,4 +196,72 @@ internal class AndroidNfcEngagement(context: Context) : Application.ActivityLife
     override fun onActivityStopped(activity: Activity) = Unit
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
     override fun onActivityDestroyed(activity: Activity) = Unit
+
+    /** BLE in both roles, one method per role, as the reader offers them in negotiated handover. */
+    private fun readerConnectionMethods(): List<MdocConnectionMethod> =
+        MdocConnectionMethod.disambiguate(
+            listOf(
+                MdocConnectionMethodBle(
+                    supportsPeripheralServerMode = true,
+                    supportsCentralClientMode = true,
+                    peripheralServerModeUuid = UUID.randomUUID(),
+                    centralClientModeUuid = UUID.randomUUID()
+                )
+            ),
+            MdocRole.MDOC_READER
+        )
+
+    private companion object {
+        const val PRESENCE_CHECK_DELAY_MS = 1000
+    }
+}
+
+/** An NFC engagement done as soon as the wallet was found, waiting to be taken over. */
+internal class PendingNfcEngagement(
+    val helper: VerificationHelper,
+    val listener: BufferingListener,
+    val tagTechs: String,
+)
+
+/**
+ * Keeps [VerificationHelper] events until [attach] gives it the transfer manager's own listener,
+ * then plays them back in order and forwards everything after that.
+ */
+internal class BufferingListener(private val handler: Handler) : VerificationHelper.Listener {
+
+    private val buffered = mutableListOf<(VerificationHelper.Listener) -> Unit>()
+    private var target: VerificationHelper.Listener? = null
+
+    fun attach(listener: VerificationHelper.Listener) {
+        val events = synchronized(this) {
+            target = listener
+            buffered.toList().also { buffered.clear() }
+        }
+        handler.post { events.forEach { it(listener) } }
+    }
+
+    private fun dispatch(event: (VerificationHelper.Listener) -> Unit) {
+        val current = synchronized(this) {
+            target ?: run { buffered += event; null }
+        }
+        current?.let { listener -> handler.post { event(listener) } }
+    }
+
+    override fun onReaderEngagementReady(readerEngagement: ByteArray) =
+        dispatch { it.onReaderEngagementReady(readerEngagement) }
+
+    override fun onDeviceEngagementReceived(connectionMethods: List<MdocConnectionMethod>) =
+        dispatch { it.onDeviceEngagementReceived(connectionMethods) }
+
+    override fun onMoveIntoNfcField() = dispatch { it.onMoveIntoNfcField() }
+
+    override fun onDeviceConnected() = dispatch { it.onDeviceConnected() }
+
+    override fun onDeviceDisconnected(transportSpecificTermination: Boolean) =
+        dispatch { it.onDeviceDisconnected(transportSpecificTermination) }
+
+    override fun onResponseReceived(deviceResponseBytes: ByteArray) =
+        dispatch { it.onResponseReceived(deviceResponseBytes) }
+
+    override fun onError(error: Throwable) = dispatch { it.onError(error) }
 }

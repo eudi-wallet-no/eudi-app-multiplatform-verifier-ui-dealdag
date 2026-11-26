@@ -23,6 +23,7 @@ import dev.mokkery.mock
 import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode.Companion.exactly
 import eu.europa.ec.euidi.verifier.core.controller.PlatformController
+import eu.europa.ec.euidi.verifier.core.controller.TransferController
 import eu.europa.ec.euidi.verifier.core.provider.ResourceProvider
 import eu.europa.ec.euidi.verifier.core.provider.UuidProvider
 import eu.europa.ec.euidi.verifier.domain.config.ConfigProvider
@@ -63,6 +64,7 @@ class HomeInteractorTest {
         uuidProvider: UuidProvider = sequentialUuidProvider(),
         resourceProvider: ResourceProvider = stringResourceProvider(),
         configProvider: ConfigProvider = mock<ConfigProvider>(),
+        transferController: TransferController = mock<TransferController>(),
     ): HomeInteractor {
         val dispatcher = coroutineContext[ContinuationInterceptor] as CoroutineDispatcher
         return HomeInteractorImpl(
@@ -70,6 +72,7 @@ class HomeInteractorTest {
             uuidProvider = uuidProvider,
             resourceProvider = resourceProvider,
             configProvider = configProvider,
+            transferController = transferController,
             dispatcher = dispatcher
         )
     }

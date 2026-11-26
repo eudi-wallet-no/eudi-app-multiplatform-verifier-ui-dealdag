@@ -49,11 +49,12 @@
     <string name="content_description_image_or_placeholder_icon">Image or placeholder icon</string>
 
     <!-- Home -->
-    <string name="home_screen_title">Digdir FEL Loen 2026</string>
+    <string name="home_screen_title">FEL Loen 2026</string>
+    <string name="home_screen_subtitle">Digdir</string>
     <string name="home_screen_sticky_bottom_text">Verifiser drikkebong</string>
     <string name="home_screen_main_button_text_default">Tap to create request</string>
     <string name="home_screen_main_button_text_separator">; </string>
-    <string name="home_screen_nfc_title">Skann QR-kode eller bruk NFC</string>
+    <string name="home_screen_nfc_title">Vis drikkebongen frå lommeboka di med QR-kode eller NFC</string>
 
     <!-- Menu -->
     <string name="menu_screen_title">Menu</string>
@@ -95,6 +96,20 @@
 
     <!-- Show Documents -->
     <string name="show_documents_screen_title">Show Documents</string>
+    <string name="drikkebong_accepted_title">Skål! Bongen er godkjent</string>
+    <string name="drikkebong_rejected_title">Drikkebongen vart ikkje godkjend</string>
+    <string name="drikkebong_none_left_title">Du har ingen bonger igjen</string>
+    <string name="drikkebong_none_left_subtitle">Begge drikkebongene dine er brukt. Skål og god jul!</string>
+    <string name="drikkebong_rejected_invalid">Signaturen på drikkebongen er ikkje gyldig.</string>
+    <string name="drikkebong_rejected_not_trusted">Drikkebongen er ikkje utferda av ein utferdar appen stolar på.</string>
+    <string name="drikkebong_back_to_start">Neste kunde</string>
+    <string name="transfer_waiting_title">Venter på mobil</string>
+    <string name="transfer_waiting_subtitle">Hald telefonen i nærleiken til delinga er ferdig</string>
+    <string name="transfer_failed_title">Delinga stoppa</string>
+    <string name="transfer_failed_subtitle">Hald telefonen mot nettbrettet igjen for å prøve på nytt</string>
+    <string name="transfer_log_title">Logg</string>
+    <string name="transfer_cancel">Avbryt</string>
+    <string name="transfer_back">Tilbake til start</string>
     <string name="show_documents_screen_num_of_docs_description">Number of documents returned</string>
     <string name="show_documents_screen_address_description">Address</string>
     <string name="show_documents_screen_document_header">Doctype</string>
@@ -116,13 +131,13 @@
     <string name="transfer_status_screen_request_label">Requesting</string>
     <string name="transfer_status_screen_request_status">Status: </string>
     <string name="transfer_status_screen_no_permissions">One or more permissions are missing \n Tap here to go to App's Settings</string>
-    <string name="transfer_status_screen_status_connected">Connected</string>
-    <string name="transfer_status_screen_status_connecting">Connecting...</string>
-    <string name="transfer_status_screen_status_device_engagement_completed">Device engagement completed</string>
-    <string name="transfer_status_screen_status_disconnected">Disconnected</string>
-    <string name="transfer_status_screen_status_error">Error %1$s</string>
-    <string name="transfer_status_screen_status_on_response_received">Response received</string>
-    <string name="transfer_status_screen_status_request_sent">Request sent</string>
+    <string name="transfer_status_screen_status_connected">Kopla til</string>
+    <string name="transfer_status_screen_status_connecting">Koplar til over Bluetooth ...</string>
+    <string name="transfer_status_screen_status_device_engagement_completed">Engagement fullført</string>
+    <string name="transfer_status_screen_status_disconnected">Fråkopla</string>
+    <string name="transfer_status_screen_status_error">Feil: %1$s</string>
+    <string name="transfer_status_screen_status_on_response_received">Svar motteke</string>
+    <string name="transfer_status_screen_status_request_sent">Førespurnad sendt</string>
 
     <!-- Document Types -->
     <string name="document_type_pid">PID</string>

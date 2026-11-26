@@ -57,6 +57,9 @@ internal interface TransferStatusInteractor {
     ): String
 
     suspend fun stopConnection()
+
+    /** Starts listening for a wallet over NFC. Returns false when NFC is missing or off. */
+    fun enableNfcEngagement(onTagDiscovered: () -> Unit): Boolean
 }
 
 internal class TransferStatusInteractorImpl(
@@ -79,6 +82,7 @@ internal class TransferStatusInteractorImpl(
                     documentType = getAttestationTypeFromDocType(docType = receivedDoc.docType),
                     claims = receivedDoc.claims,
                     documentValidity = receivedDoc.validity.toUi(),
+                    isTrusted = receivedDoc.isTrusted,
                 )
             }
         }
@@ -125,6 +129,9 @@ internal class TransferStatusInteractorImpl(
     override suspend fun stopConnection() {
         transferController.stopConnection()
     }
+
+    override fun enableNfcEngagement(onTagDiscovered: () -> Unit): Boolean =
+        transferController.enableNfcEngagement(onTagDiscovered)
 
     private suspend fun getSettingsValue(prefKey: PrefKey, defaultValue: Boolean): Boolean {
         return dataStoreController.getBoolean(prefKey, defaultValue) ?: defaultValue

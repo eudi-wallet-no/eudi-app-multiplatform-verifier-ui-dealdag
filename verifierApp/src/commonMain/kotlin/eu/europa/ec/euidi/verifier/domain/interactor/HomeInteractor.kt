@@ -17,6 +17,7 @@
 package eu.europa.ec.euidi.verifier.domain.interactor
 
 import eu.europa.ec.euidi.verifier.core.controller.PlatformController
+import eu.europa.ec.euidi.verifier.core.controller.TransferController
 import eu.europa.ec.euidi.verifier.core.provider.ResourceProvider
 import eu.europa.ec.euidi.verifier.core.provider.UuidProvider
 import eu.europa.ec.euidi.verifier.domain.config.ConfigProvider
@@ -50,6 +51,11 @@ internal interface HomeInteractor {
     ): ListItemDataUi
 
     fun closeApp()
+
+    /** Starts listening for a wallet over NFC. Returns false when NFC is missing or off. */
+    fun enableNfcEngagement(onTagDiscovered: () -> Unit): Boolean
+
+    fun disableNfcEngagement()
 }
 
 internal class HomeInteractorImpl(
@@ -57,6 +63,7 @@ internal class HomeInteractorImpl(
     private val uuidProvider: UuidProvider,
     private val resourceProvider: ResourceProvider,
     private val configProvider: ConfigProvider,
+    private val transferController: TransferController,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : HomeInteractor {
 
@@ -107,5 +114,12 @@ internal class HomeInteractorImpl(
 
     override fun closeApp() {
         platformController.closeApp()
+    }
+
+    override fun enableNfcEngagement(onTagDiscovered: () -> Unit): Boolean =
+        transferController.enableNfcEngagement(onTagDiscovered)
+
+    override fun disableNfcEngagement() {
+        transferController.disableNfcEngagement()
     }
 }
