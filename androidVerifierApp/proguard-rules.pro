@@ -19,3 +19,8 @@
 
 # Firebase Components service discovery used by ML Kit.
 -keep class * implements com.google.firebase.components.ComponentRegistrar { *; }
+# NFC engagement reads and replaces TransferManagerImpl's VerificationHelper by reflection
+-keepclassmembers class eu.europa.ec.eudi.verifier.core.transfer.TransferManagerImpl {
+    private ** responseListener;
+    private ** verificationHelper;
+}

@@ -50,14 +50,25 @@ class HomeViewModelTest : MviViewModelTest() {
     private fun homeInteractor(): HomeInteractor = mock<HomeInteractor>(MockMode.autoUnit) {
         every { getScreenTitle() } returns "Home"
         every { getDefaultMainButtonData() } returns buttonData
+        every { getDefaultRequestedDocs() } returns emptyList()
     }
 
     //region OnResume
 
     @Test
-    fun `Given a view model When OnResume is received without documents Then the title and the default main button are loaded`() = runTest(testDispatcher) {
+    fun `Given a view model When OnResume is received without documents Then the default documents are requested`() = runTest(testDispatcher) {
         // Given
-        val viewModel = HomeViewModel(homeInteractor())
+        val defaultDocs = listOf(TestData.drikkebongFullRequestedDocument)
+        val formattedButton = buttonData.copy(
+            mainContentData = ListItemMainContentDataUi.Text("Full Drikkebong")
+        )
+        val interactor = mock<HomeInteractor>(MockMode.autoUnit) {
+            every { getScreenTitle() } returns "Home"
+            every { getDefaultMainButtonData() } returns buttonData
+            every { getDefaultRequestedDocs() } returns defaultDocs
+            everySuspend { formatMainButtonData(defaultDocs, buttonData) } returns formattedButton
+        }
+        val viewModel = HomeViewModel(interactor)
 
         // When
         viewModel.setEvent(Event.OnResume(docs = null))
@@ -65,8 +76,23 @@ class HomeViewModelTest : MviViewModelTest() {
         // Then
         val state = viewModel.uiState.value
         assertEquals("Home", state.screenTitle)
-        assertEquals(buttonData, state.mainButtonData)
+        assertEquals(formattedButton, state.mainButtonData)
         assertFalse(state.isLoading)
+        assertEquals(defaultDocs, state.requestedDocs)
+        assertTrue(state.isStickyButtonEnabled)
+    }
+
+    @Test
+    fun `Given no default documents When OnResume is received without documents Then nothing is requested`() = runTest(testDispatcher) {
+        // Given
+        val viewModel = HomeViewModel(homeInteractor())
+
+        // When
+        viewModel.setEvent(Event.OnResume(docs = emptyList()))
+
+        // Then
+        val state = viewModel.uiState.value
+        assertEquals(buttonData, state.mainButtonData)
         assertTrue(state.requestedDocs.isEmpty())
         assertFalse(state.isStickyButtonEnabled)
     }
@@ -111,6 +137,7 @@ class HomeViewModelTest : MviViewModelTest() {
             val interactor = mock<HomeInteractor>(MockMode.autoUnit) {
                 every { getScreenTitle() } returns "Home"
                 every { getDefaultMainButtonData() } returns buttonData
+                every { getDefaultRequestedDocs() } returns emptyList()
                 everySuspend { formatMainButtonData(docs, buttonData) } returns formattedButton
             }
             val viewModel = HomeViewModel(interactor)

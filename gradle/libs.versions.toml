@@ -36,6 +36,7 @@ mokoPermissions = "0.20.1"
 
 # EUDI Verifier core (ISO 18013-5 proximity)
 core = "0.1.0"
+multipaz = "0.93.0"
 
 # Code coverage — Kover
 kover = "0.9.11"
@@ -98,6 +99,7 @@ moko-permissions-location = { module = "dev.icerock.moko:permissions-location", 
 
 # EUDI Verifier core (ISO 18013-5 proximity)
 core = { module = "eu.europa.ec.eudi:eudi-lib-android-verifier-core", version.ref = "core" }
+multipaz-android-legacy = { module = "org.multipaz:multipaz-android-legacy", version.ref = "multipaz" }
 
 # Testing
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }

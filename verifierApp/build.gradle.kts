@@ -70,6 +70,8 @@ kotlin {
             implementation(libs.androidx.activity.compose)
             implementation(libs.koin.android)
             implementation(libs.core)
+            // NFC engagement: verifier-core 0.1.0 has no NFC support, so we drive multipaz directly
+            implementation(libs.multipaz.android.legacy)
             implementation(libs.ktor.client.okhttp)
         }
 

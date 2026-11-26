@@ -38,6 +38,9 @@ class AttestationTypeTest {
 
         assertEquals("eu.europa.ec.eudi.employee.1", AttestationType.EmployeeId.namespace)
         assertEquals("eu.europa.ec.eudi.employee.1", AttestationType.EmployeeId.docType)
+
+        assertEquals("net:eidas2sandkasse:test:drikkebong:1", AttestationType.Drikkebong.namespace)
+        assertEquals("net:eidas2sandkasse:test:drikkebong:1", AttestationType.Drikkebong.docType)
     }
 
     @Test
@@ -46,6 +49,7 @@ class AttestationTypeTest {
         assertEquals("PID", AttestationType.Pid.getDisplayName(resourceProvider))
         assertEquals("MDL", AttestationType.Mdl.getDisplayName(resourceProvider))
         assertEquals("Employee ID", AttestationType.EmployeeId.getDisplayName(resourceProvider))
+        assertEquals("Drikkebong", AttestationType.Drikkebong.getDisplayName(resourceProvider))
     }
 
     @Test
@@ -62,6 +66,10 @@ class AttestationTypeTest {
         assertEquals(
             AttestationType.EmployeeId,
             getAttestationTypeFromDocType(AttestationType.EmployeeId.docType)
+        )
+        assertEquals(
+            AttestationType.Drikkebong,
+            getAttestationTypeFromDocType(AttestationType.Drikkebong.docType)
         )
     }
 

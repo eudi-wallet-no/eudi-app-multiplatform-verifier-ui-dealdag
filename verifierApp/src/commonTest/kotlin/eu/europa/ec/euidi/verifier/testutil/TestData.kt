@@ -70,6 +70,13 @@ internal object TestData {
         documentType = AttestationType.Mdl,
         mode = DocumentMode.CUSTOM,
     )
+
+    val drikkebongFullRequestedDocument = RequestedDocumentUi(
+        id = "Drikkebong",
+        documentType = AttestationType.Drikkebong,
+        mode = DocumentMode.FULL,
+        claims = listOf(ClaimItem(label = "navn"), ClaimItem(label = "epostadresse")),
+    )
     // endregion
 
     // region Validity

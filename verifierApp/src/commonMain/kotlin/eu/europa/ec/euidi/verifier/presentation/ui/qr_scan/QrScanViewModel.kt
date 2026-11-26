@@ -17,6 +17,7 @@
 package eu.europa.ec.euidi.verifier.presentation.ui.qr_scan
 
 import androidx.lifecycle.viewModelScope
+import eu.europa.ec.euidi.verifier.core.utils.Constants
 import eu.europa.ec.euidi.verifier.domain.interactor.QrScanInteractor
 import eu.europa.ec.euidi.verifier.presentation.architecture.MviViewModel
 import eu.europa.ec.euidi.verifier.presentation.architecture.UiEffect
@@ -37,6 +38,7 @@ internal sealed interface QrScanViewModelContract {
 
         val screenTitle: String = "",
         val finishedScanning: Boolean = false,
+        val nfcAvailable: Boolean = false,
 
         val requestedDocs: List<RequestedDocumentUi> = emptyList(),
     ) : UiState
@@ -50,6 +52,7 @@ internal sealed interface QrScanViewModelContract {
         data object DismissError : Event
         data class OnQrScanned(val code: String) : Event
         data class OnQrScanFailed(val error: String) : Event
+        data object OnNfcTagDiscovered : Event
     }
 
     sealed interface Effect : UiEffect {
@@ -95,6 +98,10 @@ internal class QrScanViewModel(
             is Event.OnQrScanFailed -> {
                 handleQrScanFailed(error = event.error)
             }
+
+            is Event.OnNfcTagDiscovered -> {
+                handleNfcTagDiscovered()
+            }
         }
     }
 
@@ -124,7 +131,24 @@ internal class QrScanViewModel(
             showError { interactor.getMissingDocumentsMessage() }
         } else {
             setDocuments(docs)
+            val nfcAvailable = interactor.enableNfcEngagement(
+                onTagDiscovered = { setEvent(Event.OnNfcTagDiscovered) }
+            )
+            setState { copy(nfcAvailable = nfcAvailable) }
         }
+    }
+
+    private fun handleNfcTagDiscovered() {
+        if (uiState.value.finishedScanning) {
+            return
+        }
+        setState { copy(finishedScanning = true) }
+        goToTransferStatusScreen(qrCode = Constants.Generic.NFC_ENGAGEMENT)
+    }
+
+    override fun onCleared() {
+        interactor.disableNfcEngagement()
+        super.onCleared()
     }
 
     private fun goToTransferStatusScreen(qrCode: String) {

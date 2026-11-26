@@ -16,9 +16,13 @@
 
 package eu.europa.ec.euidi.verifier.domain.interactor
 
+import dev.mokkery.MockMode
 import dev.mokkery.answering.returns
 import dev.mokkery.every
+import dev.mokkery.matcher.any
 import dev.mokkery.mock
+import dev.mokkery.verify
+import eu.europa.ec.euidi.verifier.core.controller.TransferController
 import eu.europa.ec.euidi.verifier.core.provider.ResourceProvider
 import eudiverifier.verifierapp.generated.resources.Res
 import eudiverifier.verifierapp.generated.resources.qr_scan_screen_error_invalid_code
@@ -41,14 +45,38 @@ class QrScanInteractorTest {
      * scheduler and a Mokkery mock for the [ResourceProvider].
      */
     private fun TestScope.createInteractor(
-        resourceProvider: ResourceProvider = stringResourceProvider()
+        resourceProvider: ResourceProvider = stringResourceProvider(),
+        transferController: TransferController = mock<TransferController>(),
     ): QrScanInteractor {
         val dispatcher = coroutineContext[ContinuationInterceptor] as CoroutineDispatcher
         return QrScanInteractorImpl(
             resourceProvider = resourceProvider,
+            transferController = transferController,
             dispatcher = dispatcher
         )
     }
+
+    //region NFC
+
+    @Test
+    fun `Given a transfer controller When NFC engagement is enabled and disabled Then the calls are passed on`() = runTest(StandardTestDispatcher()) {
+        // Given
+        val transferController = mock<TransferController>(MockMode.autoUnit) {
+            every { enableNfcEngagement(any()) } returns true
+        }
+        val interactor = createInteractor(transferController = transferController)
+
+        // When
+        val enabled = interactor.enableNfcEngagement(onTagDiscovered = {})
+        interactor.disableNfcEngagement()
+
+        // Then
+        assertTrue(enabled)
+        verify { transferController.enableNfcEngagement(any()) }
+        verify { transferController.disableNfcEngagement() }
+    }
+
+    //endregion
 
     //region getScreenTitle
 

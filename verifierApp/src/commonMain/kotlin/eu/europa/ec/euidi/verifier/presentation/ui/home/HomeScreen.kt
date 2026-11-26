@@ -37,7 +37,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import eu.europa.ec.euidi.verifier.presentation.component.AppIconAndText
 import eu.europa.ec.euidi.verifier.presentation.component.AppIcons
 import eu.europa.ec.euidi.verifier.presentation.component.ListItemDataUi
 import eu.europa.ec.euidi.verifier.presentation.component.content.ContentScreen
@@ -130,10 +129,6 @@ private fun TopBar(
             customTint = MaterialTheme.colorScheme.onSurface,
             onClick = onMenuClick,
         )
-
-        AppIconAndText(
-            modifier = Modifier.align(Alignment.Center),
-        )
     }
 }
 
@@ -200,15 +195,11 @@ private fun Content(
             modifier = Modifier.fillMaxWidth()
         )
 
-        state.mainButtonData?.let { safeMainButtonData ->
-            MainSection(
-                mainButtonData = safeMainButtonData,
-                modifier = Modifier.fillMaxSize(),
-                onTapToCreateRequest = {
-                    onEventSend(Event.OnTapToCreateRequest)
-                }
-            )
-        }
+        NfcSection(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(SPACING_EXTRA_LARGE.dp)
+        )
     }
 
     LaunchedEffect(Unit) {
@@ -230,44 +221,7 @@ private fun ScreenTitle(
         modifier = modifier,
         color = MaterialTheme.colorScheme.onSurface,
         textAlign = TextAlign.Center,
-        style = MaterialTheme.typography.titleLarge,
-    )
-}
-
-@Composable
-private fun MainSection(
-    mainButtonData: ListItemDataUi,
-    modifier: Modifier = Modifier,
-    onTapToCreateRequest: () -> Unit,
-) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        MainButton(
-            data = mainButtonData,
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onTapToCreateRequest,
-        )
-        NfcSection(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(SPACING_EXTRA_LARGE.dp)
-        )
-    }
-}
-
-@Composable
-private fun MainButton(
-    modifier: Modifier = Modifier,
-    data: ListItemDataUi,
-    onClick: () -> Unit,
-) {
-    WrapListItem(
-        modifier = modifier,
-        item = data,
-        onItemClick = { onClick() },
-        mainContentVerticalPadding = SPACING_MEDIUM.dp
+        style = MaterialTheme.typography.headlineLarge,
     )
 }
 

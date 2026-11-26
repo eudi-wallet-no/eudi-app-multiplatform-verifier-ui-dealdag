@@ -18,6 +18,7 @@ package eu.europa.ec.euidi.verifier.core.di
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import eu.europa.ec.euidi.verifier.core.controller.AndroidNfcEngagement
 import eu.europa.ec.euidi.verifier.core.controller.AndroidPlatformController
 import eu.europa.ec.euidi.verifier.core.controller.AndroidTransferController
 import eu.europa.ec.euidi.verifier.core.controller.DataStoreControllerImpl.Companion.DATASTORE_FILENAME
@@ -38,10 +39,15 @@ internal actual fun platformModule() = module {
         AndroidPlatformController(androidContext())
     }
 
+    // Created at start so it sees the activity resume and can turn on NFC reader mode
+    single(createdAtStart = true) {
+        AndroidNfcEngagement(androidContext())
+    }
     factory<TransferController> {
         AndroidTransferController(
             context = androidContext(),
-            resourceProvider = get()
+            resourceProvider = get(),
+            nfcEngagement = get()
         )
     }
 }

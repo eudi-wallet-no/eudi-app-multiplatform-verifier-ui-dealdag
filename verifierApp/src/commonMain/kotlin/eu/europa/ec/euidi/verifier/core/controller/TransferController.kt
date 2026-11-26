@@ -32,7 +32,21 @@ internal interface TransferController {
         clearBleCache: Boolean
     )
 
+    /**
+     * Starts the engagement. [qrCode] is the scanned `mdoc:` QR code, or
+     * [eu.europa.ec.euidi.verifier.core.utils.Constants.Generic.NFC_ENGAGEMENT] to use the
+     * wallet found by [enableNfcEngagement].
+     */
     fun startEngagement(qrCode: String)
+
+    /**
+     * Starts polling for a wallet over NFC. [onTagDiscovered] is called once when one is found.
+     * Returns false when NFC is missing or turned off.
+     */
+    fun enableNfcEngagement(onTagDiscovered: () -> Unit): Boolean
+
+    /** Stops polling for a wallet over NFC, unless one was found and is waiting to be engaged. */
+    fun disableNfcEngagement()
 
     fun sendRequest(
         requestedDocs: List<RequestedDocumentUi>,

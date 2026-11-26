@@ -18,6 +18,9 @@ package eu.europa.ec.euidi.verifier.core.controller
 
 import android.content.Context
 import android.util.Base64
+import androidx.core.content.ContextCompat
+import com.android.identity.android.mdoc.deviceretrieval.VerificationHelper
+import com.android.identity.android.mdoc.transport.DataTransportOptions
 import eu.europa.ec.eudi.verifier.core.EudiVerifier
 import eu.europa.ec.eudi.verifier.core.EudiVerifierConfig
 import eu.europa.ec.eudi.verifier.core.request.DeviceRequest
@@ -27,6 +30,7 @@ import eu.europa.ec.eudi.verifier.core.transfer.TransferEvent
 import eu.europa.ec.eudi.verifier.core.transfer.TransferManager
 import eu.europa.ec.euidi.verifier.core.extension.flattenedClaims
 import eu.europa.ec.euidi.verifier.core.provider.ResourceProvider
+import eu.europa.ec.euidi.verifier.core.utils.Constants
 import eu.europa.ec.euidi.verifier.domain.config.model.ClaimItem
 import eu.europa.ec.euidi.verifier.domain.config.model.Logger
 import eu.europa.ec.euidi.verifier.domain.model.DocumentValidityDomain
@@ -57,13 +61,16 @@ import kotlin.time.ExperimentalTime
 @OptIn(ExperimentalTime::class)
 internal class AndroidTransferController(
     private val context: Context,
-    private val resourceProvider: ResourceProvider
+    private val resourceProvider: ResourceProvider,
+    private val nfcEngagement: AndroidNfcEngagement,
 ) : TransferController {
 
     private var transferManager: TransferManager? = null
     private lateinit var eudiVerifier: EudiVerifier
     private var listener: TransferEvent.Listener? = null
     private var scope: CoroutineScope? = null
+    private var connectionMethods: List<MdocConnectionMethod> = emptyList()
+    private var dataTransportOptions: DataTransportOptions = DataTransportOptions.Builder().build()
 
     private val _statuses = MutableSharedFlow<TransferStatus>(
         replay = 1,
@@ -110,12 +117,85 @@ internal class AndroidTransferController(
         transferManager = eudiVerifier.createTransferManager {
             addEngagementMethod(TransferConfig.EngagementMethod.QR, connectionMethods)
         }
+        this.connectionMethods = connectionMethods
+        dataTransportOptions = DataTransportOptions.Builder()
+            .setBleUseL2CAP(useL2Cap)
+            .setBleClearCache(clearBleCache)
+            .build()
 
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     }
 
     override fun startEngagement(qrCode: String) {
-        transferManager?.startQRDeviceEngagement(qrCode)
+        if (qrCode == Constants.Generic.NFC_ENGAGEMENT) {
+            startNfcEngagement()
+        } else {
+            transferManager?.startQRDeviceEngagement(qrCode)
+        }
+    }
+
+    override fun enableNfcEngagement(onTagDiscovered: () -> Unit): Boolean =
+        nfcEngagement.enable(onTagDiscovered)
+
+    override fun disableNfcEngagement() {
+        nfcEngagement.disable()
+    }
+
+    /**
+     * NFC device engagement (ISO/IEC 18013-5, 8.2.2.1). verifier-core 0.1.0 does not implement it
+     * (`enableNFCDeviceEngagement` only logs "Not implemented yet"), so we give its transfer
+     * manager a multipaz [VerificationHelper] and let that read the engagement from the tag.
+     * The transfer manager's own listener then connects over BLE and reports events as for QR.
+     */
+    private fun startNfcEngagement() {
+        val manager = transferManager ?: return
+        val tag = nfcEngagement.takePendingTag()
+        if (tag == null) {
+            _statuses.tryEmit(TransferStatus.Error(NFC_TAG_LOST_MESSAGE))
+            return
+        }
+        try {
+            val helper = manager.attachNfcVerificationHelper()
+            scope?.launch(Dispatchers.IO) {
+                try {
+                    helper.nfcProcessOnTagDiscovered(tag)
+                } catch (t: Throwable) {
+                    _statuses.tryEmit(
+                        TransferStatus.Error(t.localizedMessage ?: NFC_TAG_LOST_MESSAGE)
+                    )
+                }
+            }
+        } catch (t: Throwable) {
+            _statuses.tryEmit(
+                TransferStatus.Error(t.localizedMessage ?: resourceProvider.genericErrorMessage())
+            )
+        }
+    }
+
+    /**
+     * Builds a [VerificationHelper] that reports to the transfer manager's own listener, and puts
+     * it in the transfer manager, so its request and response handling works as for QR.
+     */
+    private fun TransferManager.attachNfcVerificationHelper(): VerificationHelper {
+        val managerClass = this::class.java
+        val listener = managerClass.getDeclaredField("responseListener")
+            .apply { isAccessible = true }
+            .get(this) as VerificationHelper.Listener
+
+        val helper = VerificationHelper.Builder(
+            context,
+            listener,
+            ContextCompat.getMainExecutor(context)
+        )
+            .setDataTransportOptions(dataTransportOptions)
+            .setNegotiatedHandoverConnectionMethods(connectionMethods)
+            .build()
+
+        managerClass.getDeclaredField("verificationHelper")
+            .apply { isAccessible = true }
+            .set(this, helper)
+
+        return helper
     }
 
     override fun sendRequest(
@@ -230,12 +310,17 @@ internal class AndroidTransferController(
     }
 
     override fun stopConnection() {
+        nfcEngagement.reset()
         listener?.let { transferManager?.removeListener(it) }
         listener = null
         transferManager?.stopSession()
         transferManager = null
         scope?.cancel()
         scope = null
+    }
+
+    private companion object {
+        const val NFC_TAG_LOST_MESSAGE = "Fekk ikkje kontakt med lommeboka over NFC. Prøv igjen."
     }
 
     private fun pemToX509Certificate(pem: String): Result<X509Certificate> {

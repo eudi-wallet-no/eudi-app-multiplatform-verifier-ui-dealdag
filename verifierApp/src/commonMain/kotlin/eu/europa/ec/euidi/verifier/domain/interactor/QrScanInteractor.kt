@@ -16,6 +16,7 @@
 
 package eu.europa.ec.euidi.verifier.domain.interactor
 
+import eu.europa.ec.euidi.verifier.core.controller.TransferController
 import eu.europa.ec.euidi.verifier.core.provider.ResourceProvider
 import eu.europa.ec.euidi.verifier.core.utils.Constants
 import eudiverifier.verifierapp.generated.resources.Res
@@ -32,10 +33,16 @@ internal interface QrScanInteractor {
     fun qrCodeIsValid(qrCode: String): Boolean
     suspend fun getInvalidQrCodeMessage(): String
     suspend fun getMissingDocumentsMessage(): String
+
+    /** Starts listening for a wallet over NFC. Returns false when NFC is missing or off. */
+    fun enableNfcEngagement(onTagDiscovered: () -> Unit): Boolean
+
+    fun disableNfcEngagement()
 }
 
 internal class QrScanInteractorImpl(
     private val resourceProvider: ResourceProvider,
+    private val transferController: TransferController,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : QrScanInteractor {
 
@@ -59,5 +66,12 @@ internal class QrScanInteractorImpl(
         return withContext(dispatcher) {
             resourceProvider.getSharedString(Res.string.qr_scan_screen_error_missing_documents)
         }
+    }
+
+    override fun enableNfcEngagement(onTagDiscovered: () -> Unit): Boolean =
+        transferController.enableNfcEngagement(onTagDiscovered)
+
+    override fun disableNfcEngagement() {
+        transferController.disableNfcEngagement()
     }
 }

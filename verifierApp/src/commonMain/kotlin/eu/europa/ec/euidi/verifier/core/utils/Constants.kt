@@ -19,6 +19,9 @@ package eu.europa.ec.euidi.verifier.core.utils
 internal object Constants {
     object Generic {
         const val MDOC_PREFIX = "mdoc:"
+
+        /** Passed instead of a QR code when the wallet was engaged over NFC. */
+        const val NFC_ENGAGEMENT = "nfc-engagement"
     }
 
     object DocumentKeys {

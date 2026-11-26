@@ -141,7 +141,11 @@ internal class HomeViewModel(
                 buttonData
             }
 
-            handleDocs(docs = docs, baseButtonData = baseButtonData)
+            // Always request the default documents (drikkebong) when nothing else is selected
+            handleDocs(
+                docs = docs.takeUnless { it.isNullOrEmpty() } ?: interactor.getDefaultRequestedDocs(),
+                baseButtonData = baseButtonData
+            )
         }
     }
 
