@@ -49,7 +49,9 @@ internal val domainModule = module {
         HomeInteractorImpl(
             get<PlatformController>(),
             get<UuidProvider>(),
-            get<ResourceProvider>()
+            get<ResourceProvider>(),
+            get<ConfigProvider>(),
+            get<TransferController>()
         )
     }
 
@@ -102,7 +104,8 @@ internal val domainModule = module {
 
     factory<QrScanInteractor> {
         QrScanInteractorImpl(
-            get<ResourceProvider>()
+            get<ResourceProvider>(),
+            get<TransferController>()
         )
     }
 }

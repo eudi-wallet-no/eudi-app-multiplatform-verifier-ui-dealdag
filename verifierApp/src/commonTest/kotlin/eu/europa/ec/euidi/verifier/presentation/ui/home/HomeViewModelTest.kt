@@ -18,12 +18,15 @@ package eu.europa.ec.euidi.verifier.presentation.ui.home
 
 import app.cash.turbine.test
 import dev.mokkery.MockMode
+import dev.mokkery.answering.calls
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.everySuspend
+import dev.mokkery.matcher.any
 import dev.mokkery.mock
 import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode.Companion.exactly
+import eu.europa.ec.euidi.verifier.core.utils.Constants
 import eu.europa.ec.euidi.verifier.domain.interactor.HomeInteractor
 import eu.europa.ec.euidi.verifier.presentation.MviViewModelTest
 import eu.europa.ec.euidi.verifier.presentation.component.ListItemDataUi
@@ -50,14 +53,27 @@ class HomeViewModelTest : MviViewModelTest() {
     private fun homeInteractor(): HomeInteractor = mock<HomeInteractor>(MockMode.autoUnit) {
         every { getScreenTitle() } returns "Home"
         every { getDefaultMainButtonData() } returns buttonData
+        every { enableNfcEngagement(any()) } returns true
+        every { getDefaultRequestedDocs() } returns emptyList()
     }
 
     //region OnResume
 
     @Test
-    fun `Given a view model When OnResume is received without documents Then the title and the default main button are loaded`() = runTest(testDispatcher) {
+    fun `Given a view model When OnResume is received without documents Then the default documents are requested`() = runTest(testDispatcher) {
         // Given
-        val viewModel = HomeViewModel(homeInteractor())
+        val defaultDocs = listOf(TestData.drikkebongFullRequestedDocument)
+        val formattedButton = buttonData.copy(
+            mainContentData = ListItemMainContentDataUi.Text("Full Drikkebong")
+        )
+        val interactor = mock<HomeInteractor>(MockMode.autoUnit) {
+            every { getScreenTitle() } returns "Home"
+            every { getDefaultMainButtonData() } returns buttonData
+            every { getDefaultRequestedDocs() } returns defaultDocs
+            every { enableNfcEngagement(any()) } returns true
+            everySuspend { formatMainButtonData(defaultDocs, buttonData) } returns formattedButton
+        }
+        val viewModel = HomeViewModel(interactor)
 
         // When
         viewModel.setEvent(Event.OnResume(docs = null))
@@ -65,8 +81,23 @@ class HomeViewModelTest : MviViewModelTest() {
         // Then
         val state = viewModel.uiState.value
         assertEquals("Home", state.screenTitle)
-        assertEquals(buttonData, state.mainButtonData)
+        assertEquals(formattedButton, state.mainButtonData)
         assertFalse(state.isLoading)
+        assertEquals(defaultDocs, state.requestedDocs)
+        assertTrue(state.isStickyButtonEnabled)
+    }
+
+    @Test
+    fun `Given no default documents When OnResume is received without documents Then nothing is requested`() = runTest(testDispatcher) {
+        // Given
+        val viewModel = HomeViewModel(homeInteractor())
+
+        // When
+        viewModel.setEvent(Event.OnResume(docs = emptyList()))
+
+        // Then
+        val state = viewModel.uiState.value
+        assertEquals(buttonData, state.mainButtonData)
         assertTrue(state.requestedDocs.isEmpty())
         assertFalse(state.isStickyButtonEnabled)
     }
@@ -82,6 +113,7 @@ class HomeViewModelTest : MviViewModelTest() {
             val interactor = mock<HomeInteractor>(MockMode.autoUnit) {
                 every { getScreenTitle() } returns "Home"
                 every { getDefaultMainButtonData() } returns buttonData
+                every { enableNfcEngagement(any()) } returns true
                 everySuspend { formatMainButtonData(docs, buttonData) } returns formattedButton
             }
             val viewModel = HomeViewModel(interactor)
@@ -111,6 +143,8 @@ class HomeViewModelTest : MviViewModelTest() {
             val interactor = mock<HomeInteractor>(MockMode.autoUnit) {
                 every { getScreenTitle() } returns "Home"
                 every { getDefaultMainButtonData() } returns buttonData
+                every { enableNfcEngagement(any()) } returns true
+                every { getDefaultRequestedDocs() } returns emptyList()
                 everySuspend { formatMainButtonData(docs, buttonData) } returns formattedButton
             }
             val viewModel = HomeViewModel(interactor)
@@ -123,6 +157,41 @@ class HomeViewModelTest : MviViewModelTest() {
             assertEquals(formattedButton, viewModel.uiState.value.mainButtonData)
             verify(exactly(1)) { interactor.getScreenTitle() }
             verify(exactly(1)) { interactor.getDefaultMainButtonData() }
+        }
+
+    @Test
+    fun `Given the home screen When a wallet is held against the tablet Then it goes straight to the transfer status screen over NFC`() =
+        runTest(testDispatcher) {
+            // Given
+            val defaultDocs = listOf(TestData.drikkebongFullRequestedDocument)
+            var onTagDiscovered: (() -> Unit)? = null
+            val interactor = mock<HomeInteractor>(MockMode.autoUnit) {
+                every { getScreenTitle() } returns "Home"
+                every { getDefaultMainButtonData() } returns buttonData
+                every { getDefaultRequestedDocs() } returns defaultDocs
+                everySuspend { formatMainButtonData(defaultDocs, buttonData) } returns buttonData
+                every { enableNfcEngagement(any()) } calls { (callback: () -> Unit) ->
+                    onTagDiscovered = callback
+                    true
+                }
+            }
+            val viewModel = HomeViewModel(interactor)
+            viewModel.setEvent(Event.OnResume(docs = null))
+
+            viewModel.effect.test {
+                // When
+                onTagDiscovered?.invoke()
+
+                // Then
+                assertEquals(
+                    Effect.Navigation.SaveDocsToBackstackAndGoTo(
+                        screen = NavItem.TransferStatus(qrCode = Constants.Generic.NFC_ENGAGEMENT),
+                        requestedDocs = RequestedDocsHolder(items = defaultDocs)
+                    ),
+                    awaitItem()
+                )
+                cancelAndIgnoreRemainingEvents()
+            }
         }
 
     //endregion

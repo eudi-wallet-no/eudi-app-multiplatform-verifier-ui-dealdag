@@ -18,6 +18,7 @@ package eu.europa.ec.euidi.verifier.core.controller
 
 import android.content.Context
 import android.util.Base64
+import com.android.identity.android.mdoc.deviceretrieval.VerificationHelper
 import eu.europa.ec.eudi.verifier.core.EudiVerifier
 import eu.europa.ec.eudi.verifier.core.EudiVerifierConfig
 import eu.europa.ec.eudi.verifier.core.request.DeviceRequest
@@ -26,7 +27,10 @@ import eu.europa.ec.eudi.verifier.core.transfer.TransferConfig
 import eu.europa.ec.eudi.verifier.core.transfer.TransferEvent
 import eu.europa.ec.eudi.verifier.core.transfer.TransferManager
 import eu.europa.ec.euidi.verifier.core.extension.flattenedClaims
+import eu.europa.ec.euidi.verifier.core.nfc.AndroidNfcEngagement
+import eu.europa.ec.euidi.verifier.core.nfc.takeOverNfcEngagement
 import eu.europa.ec.euidi.verifier.core.provider.ResourceProvider
+import eu.europa.ec.euidi.verifier.core.utils.Constants
 import eu.europa.ec.euidi.verifier.domain.config.model.ClaimItem
 import eu.europa.ec.euidi.verifier.domain.config.model.Logger
 import eu.europa.ec.euidi.verifier.domain.model.DocumentValidityDomain
@@ -57,7 +61,8 @@ import kotlin.time.ExperimentalTime
 @OptIn(ExperimentalTime::class)
 internal class AndroidTransferController(
     private val context: Context,
-    private val resourceProvider: ResourceProvider
+    private val resourceProvider: ResourceProvider,
+    private val nfcEngagement: AndroidNfcEngagement,
 ) : TransferController {
 
     private var transferManager: TransferManager? = null
@@ -67,7 +72,7 @@ internal class AndroidTransferController(
 
     private val _statuses = MutableSharedFlow<TransferStatus>(
         replay = 1,
-        extraBufferCapacity = 8,
+        extraBufferCapacity = 64,
     )
     private val statuses: SharedFlow<TransferStatus> = _statuses.asSharedFlow()
 
@@ -115,7 +120,55 @@ internal class AndroidTransferController(
     }
 
     override fun startEngagement(qrCode: String) {
-        transferManager?.startQRDeviceEngagement(qrCode)
+        if (qrCode == Constants.Generic.NFC_ENGAGEMENT) {
+            startNfcEngagement()
+        } else {
+            _statuses.tryEmit(TransferStatus.Info("Les engagement frå QR-koden"))
+            try {
+                transferManager?.startQRDeviceEngagement(qrCode)
+            } catch (t: Throwable) {
+                // A malformed QR code must not crash the app
+                _statuses.tryEmit(
+                    TransferStatus.Error("Ugyldig QR-kode: ${t::class.simpleName}: ${t.localizedMessage}")
+                )
+            }
+        }
+    }
+
+    override fun enableNfcEngagement(onTagDiscovered: () -> Unit): Boolean =
+        nfcEngagement.enable(onTagDiscovered)
+
+    override fun disableNfcEngagement() {
+        nfcEngagement.disable()
+    }
+
+    /**
+     * NFC device engagement (ISO/IEC 18013-5, 8.2.2.1). verifier-core 0.1.0 does not implement it
+     * (`enableNFCDeviceEngagement` only logs "Not implemented yet"), so we give its transfer
+     * manager a multipaz [VerificationHelper] and let that read the engagement from the tag.
+     * The transfer manager's own listener then connects over BLE and reports events as for QR.
+     */
+    private fun startNfcEngagement() {
+        val manager = transferManager ?: return
+        val engagement = nfcEngagement.takePendingEngagement()
+        if (engagement == null) {
+            nfcEngagement.showStatus(NFC_TAG_LOST_MESSAGE)
+            _statuses.tryEmit(TransferStatus.Error(NFC_TAG_LOST_MESSAGE))
+            return
+        }
+        _statuses.tryEmit(
+            TransferStatus.Info("Engagement lese over NFC (${engagement.tagTechs})")
+        )
+        try {
+            manager.takeOverNfcEngagement(engagement)
+        } catch (t: Throwable) {
+            nfcEngagement.showStatus("NFC-feil: ${t.localizedMessage}")
+            _statuses.tryEmit(
+                TransferStatus.Error(
+                    "${t::class.simpleName}: ${t.localizedMessage ?: resourceProvider.genericErrorMessage()}"
+                )
+            )
+        }
     }
 
     override fun sendRequest(
@@ -139,8 +192,9 @@ internal class AndroidTransferController(
                         }
 
                         is TransferEvent.Connected -> {
-                            transferManager?.sendRequest(request)
                             tryEmit(TransferStatus.Connected)
+                            tryEmit(TransferStatus.Info("Ber om: ${requestedDocs.describe()}"))
+                            transferManager?.sendRequest(request)
                         }
 
                         is TransferEvent.DeviceEngagementCompleted -> {
@@ -154,8 +208,9 @@ internal class AndroidTransferController(
                         is TransferEvent.Error -> {
                             tryEmit(
                                 TransferStatus.Error(
-                                    event.error.localizedMessage
-                                        ?: resourceProvider.genericErrorMessage()
+                                    "${event.error::class.simpleName}: " +
+                                            (event.error.localizedMessage
+                                                ?: resourceProvider.genericErrorMessage())
                                 )
                             )
                         }
@@ -203,6 +258,15 @@ internal class AndroidTransferController(
                                     }
 
                                     tryEmit(
+                                        TransferStatus.Info(
+                                            "Mottok ${receivedDocuments.size} dokument " +
+                                                    "(status ${event.response.deviceResponse.status})"
+                                        )
+                                    )
+                                    receivedDocuments.forEach { doc ->
+                                        tryEmit(TransferStatus.Info(doc.describe()))
+                                    }
+                                    tryEmit(
                                         TransferStatus.OnResponseReceived(
                                             receivedDocs = ReceivedDocumentsDomain(documents = receivedDocuments)
                                         )
@@ -230,12 +294,35 @@ internal class AndroidTransferController(
     }
 
     override fun stopConnection() {
+        nfcEngagement.reset()
         listener?.let { transferManager?.removeListener(it) }
         listener = null
         transferManager?.stopSession()
         transferManager = null
         scope?.cancel()
         scope = null
+    }
+
+    private fun List<RequestedDocumentUi>.describe(): String =
+        joinToString { doc ->
+            "${doc.documentType.docType} (${doc.claims.joinToString { it.label }})"
+        }
+
+    private fun ReceivedDocumentDomain.describe(): String {
+        fun Boolean?.yesNo() = when (this) {
+            true -> "ok"
+            false -> "FEIL"
+            null -> "ukjend"
+        }
+        return "$docType: utferdarsignatur ${validity.isIssuerSignatureValid.yesNo()}, " +
+                "einingssignatur ${validity.isDeviceSignatureValid.yesNo()}, " +
+                "dataintegritet ${validity.isDataIntegrityIntact.yesNo()}, " +
+                "tillit ${if (isTrusted) "ok" else "IKKJE STOLT PÅ"}, " +
+                "${claims.size} claim"
+    }
+
+    private companion object {
+        const val NFC_TAG_LOST_MESSAGE = "Fekk ikkje kontakt med lommeboka over NFC. Prøv igjen."
     }
 
     private fun pemToX509Certificate(pem: String): Result<X509Certificate> {

@@ -23,12 +23,19 @@ import dev.mokkery.mock
 import dev.mokkery.verify
 import dev.mokkery.verify.VerifyMode.Companion.exactly
 import eu.europa.ec.euidi.verifier.core.controller.PlatformController
+import eu.europa.ec.euidi.verifier.core.controller.TransferController
 import eu.europa.ec.euidi.verifier.core.provider.ResourceProvider
 import eu.europa.ec.euidi.verifier.core.provider.UuidProvider
+import eu.europa.ec.euidi.verifier.domain.config.ConfigProvider
+import eu.europa.ec.euidi.verifier.domain.config.model.AttestationType
+import eu.europa.ec.euidi.verifier.domain.config.model.ClaimItem
+import eu.europa.ec.euidi.verifier.domain.config.model.DocumentMode
+import eu.europa.ec.euidi.verifier.domain.config.model.SupportedDocuments
 import eu.europa.ec.euidi.verifier.presentation.component.AppIcons
 import eu.europa.ec.euidi.verifier.presentation.component.ListItemDataUi
 import eu.europa.ec.euidi.verifier.presentation.component.ListItemMainContentDataUi
 import eu.europa.ec.euidi.verifier.presentation.component.ListItemTrailingContentDataUi
+import eu.europa.ec.euidi.verifier.presentation.model.RequestedDocumentUi
 import eu.europa.ec.euidi.verifier.testutil.TestData
 import eu.europa.ec.euidi.verifier.testutil.documentTypeResourceProvider
 import eu.europa.ec.euidi.verifier.testutil.sequentialUuidProvider
@@ -56,15 +63,54 @@ class HomeInteractorTest {
         platformController: PlatformController = mock<PlatformController>(MockMode.autoUnit),
         uuidProvider: UuidProvider = sequentialUuidProvider(),
         resourceProvider: ResourceProvider = stringResourceProvider(),
+        configProvider: ConfigProvider = mock<ConfigProvider>(),
+        transferController: TransferController = mock<TransferController>(),
     ): HomeInteractor {
         val dispatcher = coroutineContext[ContinuationInterceptor] as CoroutineDispatcher
         return HomeInteractorImpl(
             platformController = platformController,
             uuidProvider = uuidProvider,
             resourceProvider = resourceProvider,
+            configProvider = configProvider,
+            transferController = transferController,
             dispatcher = dispatcher
         )
     }
+
+    //region getDefaultRequestedDocs
+
+    @Test
+    fun `Given the supported documents When the default requested docs are requested Then every document is requested in full with all claims`() = runTest(StandardTestDispatcher()) {
+        // Given
+        val claims = listOf(ClaimItem("navn"), ClaimItem("epostadresse"))
+        val configProvider = mock<ConfigProvider> {
+            every { supportedDocuments } returns SupportedDocuments(
+                mapOf(AttestationType.Drikkebong to claims)
+            )
+        }
+        val interactor = createInteractor(
+            resourceProvider = documentTypeResourceProvider(),
+            configProvider = configProvider
+        )
+
+        // When
+        val result = interactor.getDefaultRequestedDocs()
+
+        // Then
+        assertEquals(
+            listOf(
+                RequestedDocumentUi(
+                    id = "Drikkebong",
+                    documentType = AttestationType.Drikkebong,
+                    mode = DocumentMode.FULL,
+                    claims = claims
+                )
+            ),
+            result
+        )
+    }
+
+    //endregion
 
     //region getScreenTitle
 

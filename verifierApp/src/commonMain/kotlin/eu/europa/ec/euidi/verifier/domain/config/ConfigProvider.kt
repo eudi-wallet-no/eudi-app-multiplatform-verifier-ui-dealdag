@@ -60,6 +60,7 @@ internal class ConfigProviderImpl(private val platformController: PlatformContro
             AttestationType.Pid -> listOf(DocumentMode.FULL, DocumentMode.CUSTOM)
             AttestationType.Mdl -> listOf(DocumentMode.FULL, DocumentMode.CUSTOM)
             AttestationType.EmployeeId -> listOf(DocumentMode.FULL, DocumentMode.CUSTOM)
+            AttestationType.Drikkebong -> listOf(DocumentMode.FULL)
         }
     }
 
@@ -71,86 +72,17 @@ internal class ConfigProviderImpl(private val platformController: PlatformContro
         Res.readBytes("files/certs/pidissuerca02_lu.pem").decodeToString(),
         Res.readBytes("files/certs/pidissuerca02_nl.pem").decodeToString(),
         Res.readBytes("files/certs/pidissuerca02_pt.pem").decodeToString(),
-        Res.readBytes("files/certs/pidissuerca02_ut.pem").decodeToString()
+        Res.readBytes("files/certs/pidissuerca02_ut.pem").decodeToString(),
+        // Bevisporten (dealdag) in eidas2sandkasse test: EAA Provider CA 2 and its root
+        Res.readBytes("files/certs/eidas2sandkasse_eaa_provider_ca2_test.pem").decodeToString(),
+        Res.readBytes("files/certs/eidas2sandkasse_root_ca2_test.pem").decodeToString()
     )
 
     override val supportedDocuments = SupportedDocuments(
         mapOf(
-            AttestationType.Pid to listOf(
-                ClaimItem("family_name"),
-                ClaimItem("given_name"),
-                ClaimItem("birth_date"),
-                ClaimItem("expiry_date"),
-                ClaimItem("issuing_country"),
-                ClaimItem("issuing_authority"),
-                ClaimItem("document_number"),
-                ClaimItem("portrait"),
-                ClaimItem("sex"),
-                ClaimItem("nationality"),
-                ClaimItem("issuing_jurisdiction"),
-                ClaimItem("resident_address"),
-                ClaimItem("resident_country"),
-                ClaimItem("resident_state"),
-                ClaimItem("resident_city"),
-                ClaimItem("resident_postal_code"),
-                ClaimItem("age_in_years"),
-                ClaimItem("age_birth_year"),
-                ClaimItem("age_over_18"),
-                ClaimItem("issuance_date"),
-                ClaimItem("email_address"),
-                ClaimItem("resident_street"),
-                ClaimItem("resident_house_number"),
-                ClaimItem("personal_administrative_number"),
-                ClaimItem("mobile_phone_number"),
-                ClaimItem("family_name_birth"),
-                ClaimItem("given_name_birth"),
-                ClaimItem("place_of_birth"),
-                ClaimItem("trust_anchor")
-            ),
-            AttestationType.Mdl to listOf(
-                ClaimItem("family_name"),
-                ClaimItem("given_name"),
-                ClaimItem("birth_date"),
-                ClaimItem("expiry_date"),
-                ClaimItem("issue_date"),
-                ClaimItem("issuing_country"),
-                ClaimItem("issuing_authority"),
-                ClaimItem("document_number"),
-                ClaimItem("portrait"),
-                ClaimItem("sex"),
-                ClaimItem("nationality"),
-                ClaimItem("issuing_jurisdiction"),
-                ClaimItem("resident_address"),
-                ClaimItem("resident_country"),
-                ClaimItem("resident_state"),
-                ClaimItem("resident_city"),
-                ClaimItem("resident_postal_code"),
-                ClaimItem("age_in_years"),
-                ClaimItem("age_birth_year"),
-                ClaimItem("age_over_18"),
-                ClaimItem("driving_privileges"),
-                ClaimItem("un_distinguishing_sign"),
-                ClaimItem("administrative_number"),
-                ClaimItem("height"),
-                ClaimItem("weight"),
-                ClaimItem("eye_colour"),
-                ClaimItem("hair_colour"),
-                ClaimItem("birth_place"),
-                ClaimItem("portrait_capture_date"),
-                ClaimItem("biometric_template_xx"),
-                ClaimItem("family_name_national_character"),
-                ClaimItem("given_name_national_character"),
-                ClaimItem("signature_usual_mark")
-            ),
-            AttestationType.EmployeeId to listOf(
-                ClaimItem("given_name"),
-                ClaimItem("family_name"),
-                ClaimItem("birth_date"),
-                ClaimItem("employee_id"),
-                ClaimItem("employer_name"),
-                ClaimItem("employment_start_date"),
-                ClaimItem("employment_type"),
-                ClaimItem("country_code"),
+            AttestationType.Drikkebong to listOf(
+                ClaimItem("navn"),
+                ClaimItem("epostadresse"),
             ),
         )
     )

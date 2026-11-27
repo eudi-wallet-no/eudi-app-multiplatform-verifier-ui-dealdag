@@ -16,16 +16,26 @@
 
 package eu.europa.ec.euidi.verifier.presentation.ui.transfer_status
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,11 +45,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import dev.icerock.moko.permissions.Permission
 import dev.icerock.moko.permissions.PermissionsController
 import dev.icerock.moko.permissions.bluetooth.BLUETOOTH_ADVERTISE
@@ -57,6 +74,9 @@ import eu.europa.ec.euidi.verifier.presentation.component.ErrorInfo
 import eu.europa.ec.euidi.verifier.presentation.component.content.ContentScreen
 import eu.europa.ec.euidi.verifier.presentation.component.content.ScreenNavigateAction
 import eu.europa.ec.euidi.verifier.presentation.component.content.ToolbarConfig
+import eu.europa.ec.euidi.verifier.presentation.component.fest.FestColors
+import eu.europa.ec.euidi.verifier.presentation.component.fest.FestGoldButton
+import eu.europa.ec.euidi.verifier.presentation.component.fest.FestOrnaments
 import eu.europa.ec.euidi.verifier.presentation.component.loader.LoadingIndicator
 import eu.europa.ec.euidi.verifier.presentation.component.preview.PreviewTheme
 import eu.europa.ec.euidi.verifier.presentation.component.preview.ThemeModePreviews
@@ -80,11 +100,19 @@ import eu.europa.ec.euidi.verifier.presentation.ui.transfer_status.TransferStatu
 import eu.europa.ec.euidi.verifier.presentation.utils.Constants
 import eudiverifier.verifierapp.generated.resources.Res
 import eudiverifier.verifierapp.generated.resources.generic_cancel
+import eudiverifier.verifierapp.generated.resources.transfer_back
+import eudiverifier.verifierapp.generated.resources.transfer_cancel
+import eudiverifier.verifierapp.generated.resources.transfer_failed_subtitle
+import eudiverifier.verifierapp.generated.resources.transfer_failed_title
+import eudiverifier.verifierapp.generated.resources.transfer_log_title
 import eudiverifier.verifierapp.generated.resources.transfer_status_screen_no_permissions
 import eudiverifier.verifierapp.generated.resources.transfer_status_screen_request_status
 import eudiverifier.verifierapp.generated.resources.transfer_status_screen_title
+import eudiverifier.verifierapp.generated.resources.transfer_waiting_subtitle
+import eudiverifier.verifierapp.generated.resources.transfer_waiting_title
 import kotlinx.coroutines.flow.Flow
 import org.jetbrains.compose.resources.stringResource
+import eu.europa.ec.euidi.verifier.core.utils.Constants as CoreConstants
 
 @Composable
 internal fun TransferStatusScreen(
@@ -93,26 +121,18 @@ internal fun TransferStatusScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    ContentScreen(
-        navigatableAction = ScreenNavigateAction.BACKABLE,
-        toolBarConfig = ToolbarConfig(
-            title = stringResource(Res.string.transfer_status_screen_title)
-        ),
-        onBack = {
-            viewModel.setEvent(TransferStatusViewModelContract.Event.OnBackClick)
-        },
-        stickyBottom = { stickyBottomPaddings ->
-            StickyBottomSection(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(stickyBottomPaddings),
-                onClick = {
-                    viewModel.setEvent(TransferStatusViewModelContract.Event.OnCancelClick)
-                },
-                enabled = true
-            )
-        }
-    ) { paddingValues ->
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(FestColors.Background)
+    ) {
+        FestOrnaments(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(end = 16.dp)
+                .size(width = 200.dp, height = 130.dp)
+        )
+
         Content(
             state = state,
             effectFlow = viewModel.effect,
@@ -122,7 +142,6 @@ internal fun TransferStatusScreen(
                     navigationEffect = navigationEffect
                 )
             },
-            paddingValues = paddingValues,
             onEvent = { event -> viewModel.setEvent(event) }
         )
 
@@ -152,6 +171,11 @@ private fun handleNavigationEffect(
 ) {
     when (navigationEffect) {
         is TransferStatusViewModelContract.Effect.Navigation.GoBack -> navController.popBackStack()
+
+        is TransferStatusViewModelContract.Effect.Navigation.RetryOverNfc -> {
+            navController.popBackStack()
+            navController.navigate(NavItem.TransferStatus(qrCode = CoreConstants.Generic.NFC_ENGAGEMENT))
+        }
 
         is TransferStatusViewModelContract.Effect.Navigation.NavigateToShowDocumentsScreen -> {
             navController.saveToCurrentBackStack<ReceivedDocsHolder>(
@@ -200,7 +224,6 @@ private fun Content(
     effectFlow: Flow<TransferStatusViewModelContract.Effect>,
     onNavigationRequested: (TransferStatusViewModelContract.Effect.Navigation) -> Unit,
     onEvent: (TransferStatusViewModelContract.Event) -> Unit,
-    paddingValues: PaddingValues
 ) {
 
     val permissionsControllerFactory: PermissionsControllerFactory =
@@ -212,39 +235,98 @@ private fun Content(
 
     BindEffect(permissionsController)
 
+    NavigationBackHandler(
+        state = rememberNavigationEventState(NavigationEventInfo.None),
+        isBackEnabled = true,
+        onBackCompleted = { onEvent(TransferStatusViewModelContract.Event.OnBackClick) }
+    )
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(paddingValues)
+            .safeDrawingPadding()
+            .padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Spacer(modifier = Modifier.height(110.dp))
+
+        Text(
+            text = stringResource(
+                if (state.failed) Res.string.transfer_failed_title
+                else Res.string.transfer_waiting_title
+            ),
+            color = if (state.failed) FestColors.Red else FestColors.DarkGreen,
+            fontSize = 40.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         if (state.hasPermissions == false) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                ErrorInfo(
-                    informativeText = stringResource(Res.string.transfer_status_screen_no_permissions),
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(SIZE_SMALL.dp))
-                        .clickable {
-                            onEvent(TransferStatusViewModelContract.Event.OpenAppSettings)
-                        }
-                        .padding(SPACING_SMALL.dp),
-                    isIconEnabled = true
+            Text(
+                text = stringResource(Res.string.transfer_status_screen_no_permissions),
+                color = FestColors.Red,
+                fontSize = 20.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .widthIn(max = 480.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onEvent(TransferStatusViewModelContract.Event.OpenAppSettings) }
+                    .padding(12.dp),
+            )
+        } else {
+            if (state.failed) {
+                Text(
+                    text = stringResource(Res.string.transfer_failed_subtitle),
+                    color = FestColors.DarkGreen,
+                    fontSize = 20.sp,
+                    lineHeight = 28.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.widthIn(max = 480.dp),
                 )
-            }
-        } else if (state.hasPermissions != null) {
-            state.requestedDocTypes?.let { safeRequestedDocTypes ->
-                HeaderInfo(
-                    title = safeRequestedDocTypes,
-                    subtitle = state.connectionStatus,
-                    modifier = Modifier.fillMaxWidth()
+            } else {
+                Text(
+                    text = stringResource(Res.string.transfer_waiting_subtitle),
+                    color = FestColors.DarkGreen,
+                    fontSize = 20.sp,
+                    lineHeight = 28.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.widthIn(max = 480.dp),
                 )
-                if (state.isLoading) {
-                    LoadingIndicator()
-                }
+                Spacer(modifier = Modifier.height(32.dp))
+                CircularProgressIndicator(
+                    color = FestColors.Gold,
+                    strokeWidth = 6.dp,
+                    modifier = Modifier.size(64.dp),
+                )
             }
         }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        StatusLog(
+            lines = listOfNotNull(state.requestedDocTypes) + state.statusLog,
+            modifier = Modifier
+                .widthIn(max = 640.dp)
+                .fillMaxWidth()
+                .weight(1f)
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        FestGoldButton(
+            text = stringResource(
+                if (state.failed) Res.string.transfer_back else Res.string.transfer_cancel
+            ),
+            enabled = true,
+            onClick = { onEvent(TransferStatusViewModelContract.Event.OnCancelClick) },
+            modifier = Modifier
+                .widthIn(max = 560.dp)
+                .fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
     }
 
     LaunchedEffect(Unit) {
@@ -295,58 +377,42 @@ private fun Content(
     }
 }
 
+/** Every status message so far, newest at the bottom, scrolled into view as they arrive. */
 @Composable
-private fun HeaderInfo(
-    title: String,
-    subtitle: String?,
+private fun StatusLog(
+    lines: List<String>,
     modifier: Modifier = Modifier,
 ) {
-    WrapCard(
+    val listState = rememberLazyListState()
+    LaunchedEffect(lines.size) {
+        if (lines.isNotEmpty()) listState.animateScrollToItem(lines.lastIndex)
+    }
+
+    Column(
         modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(FestColors.PaleGold.copy(alpha = 0.45f))
+            .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(SPACING_MEDIUM.dp),
-            verticalArrangement = Arrangement.spacedBy(SPACING_MEDIUM.dp),
-            horizontalAlignment = Alignment.Start
+        Text(
+            text = stringResource(Res.string.transfer_log_title),
+            color = FestColors.DarkGreen,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        LazyColumn(
+            state = listState,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            val textStyle = MaterialTheme.typography.bodyLarge
-            val textColor = MaterialTheme.colorScheme.onSurface
-
-            Text(
-                text = title,
-                color = textColor,
-                style = textStyle,
-            )
-
-            subtitle?.let { safeSubtitle ->
+            items(lines) { line ->
                 Text(
-                    text = stringResource(Res.string.transfer_status_screen_request_status) + safeSubtitle,
-                    color = textColor,
-                    style = textStyle,
+                    text = line,
+                    color = FestColors.DarkGreen,
+                    fontSize = 15.sp,
+                    fontFamily = FontFamily.Monospace,
                 )
             }
         }
-    }
-}
-
-@ThemeModePreviews
-@Composable
-private fun PreviewHeaderInfo() {
-    PreviewTheme {
-        HeaderInfo(
-            title = "Title",
-            subtitle = "Subtitle"
-        )
-    }
-}
-
-@ThemeModePreviews
-@Composable
-private fun PreviewHeaderInfoNoSubtitle() {
-    PreviewTheme {
-        HeaderInfo(
-            title = "Title",
-            subtitle = null
-        )
     }
 }

@@ -36,7 +36,8 @@ configure<ApplicationExtension> {
     compileSdk = Integer.parseInt(sdkVersion)
 
     defaultConfig {
-        applicationId = "eu.europa.ec.euidi.verifier"
+        // Own id so this drikkebong build can be installed next to other verifier builds
+        applicationId = "eu.europa.ec.euidi.verifier.drikkebong"
         minSdk = Integer.parseInt(minSDKVersion)
         targetSdk = Integer.parseInt(targetSdkVersion)
         versionCode = 1
@@ -79,11 +80,11 @@ configure<ApplicationExtension> {
         create("Dev") {
             dimension = "environment"
             applicationIdSuffix = ".dev"
-            manifestPlaceholders["appLabel"] = "(Dev) EUDI Verifier"
+            manifestPlaceholders["appLabel"] = "(Dev) Drikkebong Verifier"
         }
         create("Public") {
             dimension = "environment"
-            manifestPlaceholders["appLabel"] = "EUDI Verifier"
+            manifestPlaceholders["appLabel"] = "Drikkebong Verifier"
         }
     }
 
@@ -121,5 +122,16 @@ fun <T> Project.getProperty(key: String, fileName: String = "local.properties"):
         properties[key] as? T
     } catch (_: Exception) {
         null
+    }
+}
+
+// Name the APKs e.g. androidVerifierApp-Dev-debug-dealdag.apk
+configure<com.android.build.api.variant.ApplicationAndroidComponentsExtension> {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            (output as? com.android.build.api.variant.impl.VariantOutputImpl)
+                ?.outputFileName
+                ?.set("androidVerifierApp-${variant.flavorName}-${variant.buildType}-dealdag.apk")
+        }
     }
 }

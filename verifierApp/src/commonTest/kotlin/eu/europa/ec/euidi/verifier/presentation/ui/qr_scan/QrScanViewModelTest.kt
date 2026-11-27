@@ -17,11 +17,14 @@
 package eu.europa.ec.euidi.verifier.presentation.ui.qr_scan
 
 import app.cash.turbine.test
+import dev.mokkery.MockMode
+import dev.mokkery.answering.calls
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.everySuspend
 import dev.mokkery.matcher.any
 import dev.mokkery.mock
+import eu.europa.ec.euidi.verifier.core.utils.Constants
 import eu.europa.ec.euidi.verifier.domain.interactor.QrScanInteractor
 import eu.europa.ec.euidi.verifier.presentation.MviViewModelTest
 import eu.europa.ec.euidi.verifier.presentation.model.RequestedDocsHolder
@@ -39,11 +42,15 @@ class QrScanViewModelTest : MviViewModelTest() {
 
     private val docs = listOf(TestData.pidFullRequestedDocument)
 
-    private fun qrScanInteractor(qrValid: Boolean = true): QrScanInteractor = mock {
+    private fun qrScanInteractor(
+        qrValid: Boolean = true,
+        nfcAvailable: Boolean = true,
+    ): QrScanInteractor = mock(MockMode.autoUnit) {
         everySuspend { getScreenTitle() } returns "Scan QR"
         everySuspend { getInvalidQrCodeMessage() } returns "Invalid QR"
         everySuspend { getMissingDocumentsMessage() } returns "Missing documents"
         every { qrCodeIsValid(any()) } returns qrValid
+        every { enableNfcEngagement(any()) } returns nfcAvailable
     }
 
     //region Init
@@ -63,6 +70,19 @@ class QrScanViewModelTest : MviViewModelTest() {
         assertFalse(state.isLoading)
         assertFalse(state.finishedScanning)
         assertNull(state.error)
+        assertTrue(state.nfcAvailable)
+    }
+
+    @Test
+    fun `Given a device without NFC When Init is received with documents Then NFC is not available`() = runTest(testDispatcher) {
+        // Given
+        val viewModel = QrScanViewModel(qrScanInteractor(nfcAvailable = false))
+
+        // When
+        viewModel.setEvent(Event.Init(docs = docs))
+
+        // Then
+        assertFalse(viewModel.uiState.value.nfcAvailable)
     }
 
     @Test
@@ -78,6 +98,41 @@ class QrScanViewModelTest : MviViewModelTest() {
             val state = viewModel.uiState.value
             assertTrue(state.finishedScanning)
             assertEquals("Missing documents", state.error?.errorSubTitle)
+        }
+
+    //endregion
+
+    //region NFC
+
+    @Test
+    fun `Given a started scan When a wallet is found over NFC Then it navigates to the transfer status screen with the NFC marker`() =
+        runTest(testDispatcher) {
+            // Given
+            var onTagDiscovered: (() -> Unit)? = null
+            val interactor = qrScanInteractor().apply {
+                every { enableNfcEngagement(any()) } calls { (callback: () -> Unit) ->
+                    onTagDiscovered = callback
+                    true
+                }
+            }
+            val viewModel = QrScanViewModel(interactor)
+            viewModel.setEvent(Event.Init(docs = docs))
+
+            viewModel.effect.test {
+                // When
+                onTagDiscovered?.invoke()
+
+                // Then
+                assertEquals(
+                    Effect.Navigation.NavigateToTransferStatusScreen(
+                        requestedDocs = RequestedDocsHolder(items = docs),
+                        qrCode = Constants.Generic.NFC_ENGAGEMENT
+                    ),
+                    awaitItem()
+                )
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertTrue(viewModel.uiState.value.finishedScanning)
         }
 
     //endregion

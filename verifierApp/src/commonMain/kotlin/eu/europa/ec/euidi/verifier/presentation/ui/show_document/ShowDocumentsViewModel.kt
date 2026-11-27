@@ -32,6 +32,7 @@ internal sealed interface ShowDocumentViewModelContract {
         val isLoading: Boolean = false,
         val items: List<DocumentUi> = emptyList(),
         val screenTitle: String = "",
+        val verdict: DrikkebongVerdict? = null,
     ) : UiState
 
     sealed interface Event : UiEvent {
@@ -79,6 +80,7 @@ internal class ShowDocumentsViewModel(
                         copy(
                             screenTitle = title,
                             items = transformedItems,
+                            verdict = drikkebongVerdict(event.items),
                             isLoading = false
                         )
                     }

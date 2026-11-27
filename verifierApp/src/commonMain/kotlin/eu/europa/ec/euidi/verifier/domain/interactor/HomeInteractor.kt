@@ -17,8 +17,11 @@
 package eu.europa.ec.euidi.verifier.domain.interactor
 
 import eu.europa.ec.euidi.verifier.core.controller.PlatformController
+import eu.europa.ec.euidi.verifier.core.controller.TransferController
 import eu.europa.ec.euidi.verifier.core.provider.ResourceProvider
 import eu.europa.ec.euidi.verifier.core.provider.UuidProvider
+import eu.europa.ec.euidi.verifier.domain.config.ConfigProvider
+import eu.europa.ec.euidi.verifier.domain.config.model.DocumentMode
 import eu.europa.ec.euidi.verifier.domain.config.model.AttestationType.Companion.getDisplayName
 import eu.europa.ec.euidi.verifier.presentation.component.AppIcons
 import eu.europa.ec.euidi.verifier.presentation.component.ListItemDataUi
@@ -36,18 +39,31 @@ import kotlinx.coroutines.withContext
 internal interface HomeInteractor {
     fun getScreenTitle(): String
     fun getDefaultMainButtonData(): ListItemDataUi
+
+    /**
+     * The documents every request asks for: each supported document in [DocumentMode.FULL]
+     * mode, with all of its claims.
+     */
+    fun getDefaultRequestedDocs(): List<RequestedDocumentUi>
     suspend fun formatMainButtonData(
         requestedDocs: List<RequestedDocumentUi>,
         existingMainButtonData: ListItemDataUi
     ): ListItemDataUi
 
     fun closeApp()
+
+    /** Starts listening for a wallet over NFC. Returns false when NFC is missing or off. */
+    fun enableNfcEngagement(onTagDiscovered: () -> Unit): Boolean
+
+    fun disableNfcEngagement()
 }
 
 internal class HomeInteractorImpl(
     private val platformController: PlatformController,
     private val uuidProvider: UuidProvider,
     private val resourceProvider: ResourceProvider,
+    private val configProvider: ConfigProvider,
+    private val transferController: TransferController,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : HomeInteractor {
 
@@ -66,6 +82,16 @@ internal class HomeInteractorImpl(
             )
         )
     }
+
+    override fun getDefaultRequestedDocs(): List<RequestedDocumentUi> =
+        configProvider.supportedDocuments.documents.map { (documentType, claims) ->
+            RequestedDocumentUi(
+                id = documentType.getDisplayName(resourceProvider),
+                documentType = documentType,
+                mode = DocumentMode.FULL,
+                claims = claims
+            )
+        }
 
     override suspend fun formatMainButtonData(
         requestedDocs: List<RequestedDocumentUi>,
@@ -88,5 +114,12 @@ internal class HomeInteractorImpl(
 
     override fun closeApp() {
         platformController.closeApp()
+    }
+
+    override fun enableNfcEngagement(onTagDiscovered: () -> Unit): Boolean =
+        transferController.enableNfcEngagement(onTagDiscovered)
+
+    override fun disableNfcEngagement() {
+        transferController.disableNfcEngagement()
     }
 }

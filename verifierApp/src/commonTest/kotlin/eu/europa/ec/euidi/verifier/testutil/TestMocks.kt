@@ -23,6 +23,7 @@ import dev.mokkery.mock
 import eu.europa.ec.euidi.verifier.core.provider.ResourceProvider
 import eu.europa.ec.euidi.verifier.core.provider.UuidProvider
 import eudiverifier.verifierapp.generated.resources.Res
+import eudiverifier.verifierapp.generated.resources.document_type_drikkebong
 import eudiverifier.verifierapp.generated.resources.document_type_employee_id
 import eudiverifier.verifierapp.generated.resources.document_type_mdl
 import eudiverifier.verifierapp.generated.resources.document_type_pid
@@ -57,5 +58,8 @@ internal fun documentTypeResourceProvider(): ResourceProvider {
     every {
         resourceProvider.getSharedString(Res.string.document_type_employee_id)
     } returns "Employee ID"
+    every {
+        resourceProvider.getSharedString(Res.string.document_type_drikkebong)
+    } returns "Drikkebong"
     return resourceProvider
 }

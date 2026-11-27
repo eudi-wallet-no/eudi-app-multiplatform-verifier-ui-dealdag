@@ -17,6 +17,7 @@
 package eu.europa.ec.euidi.verifier.presentation.ui.home
 
 import androidx.lifecycle.viewModelScope
+import eu.europa.ec.euidi.verifier.core.utils.Constants
 import eu.europa.ec.euidi.verifier.domain.interactor.HomeInteractor
 import eu.europa.ec.euidi.verifier.presentation.architecture.MviViewModel
 import eu.europa.ec.euidi.verifier.presentation.architecture.UiEffect
@@ -54,6 +55,7 @@ internal sealed interface HomeViewModelContract {
         data object OnStickyButtonClicked : Event
         data object OnMenuClick : Event
         data object OnTapToCreateRequest : Event
+        data object OnNfcTagDiscovered : Event
     }
 
     sealed interface Effect : UiEffect {
@@ -94,6 +96,7 @@ internal class HomeViewModel(
             }
 
             is Event.OnStickyButtonClicked -> {
+                interactor.disableNfcEngagement()
                 setEffect {
                     Effect.Navigation.SaveDocsToBackstackAndGoTo(
                         screen = NavItem.QrScan,
@@ -105,6 +108,7 @@ internal class HomeViewModel(
             }
 
             is Event.OnMenuClick -> {
+                interactor.disableNfcEngagement()
                 setEffect {
                     Effect.Navigation.PushScreen(
                         route = NavItem.Menu
@@ -112,7 +116,20 @@ internal class HomeViewModel(
                 }
             }
 
+            is Event.OnNfcTagDiscovered -> {
+                // A wallet was held against the tablet on the home screen: verify right away
+                setEffect {
+                    Effect.Navigation.SaveDocsToBackstackAndGoTo(
+                        screen = NavItem.TransferStatus(qrCode = Constants.Generic.NFC_ENGAGEMENT),
+                        requestedDocs = RequestedDocsHolder(
+                            items = uiState.value.requestedDocs
+                        )
+                    )
+                }
+            }
+
             is Event.OnTapToCreateRequest -> {
+                interactor.disableNfcEngagement()
                 setEffect {
                     Effect.Navigation.SaveDocsToBackstackAndGoTo(
                         screen = NavItem.DocToRequest,
@@ -141,7 +158,17 @@ internal class HomeViewModel(
                 buttonData
             }
 
-            handleDocs(docs = docs, baseButtonData = baseButtonData)
+            // Always request the default documents (drikkebong) when nothing else is selected
+            handleDocs(
+                docs = docs.takeUnless { it.isNullOrEmpty() } ?: interactor.getDefaultRequestedDocs(),
+                baseButtonData = baseButtonData
+            )
+
+            if (uiState.value.requestedDocs.isNotEmpty()) {
+                interactor.enableNfcEngagement(
+                    onTagDiscovered = { setEvent(Event.OnNfcTagDiscovered) }
+                )
+            }
         }
     }
 

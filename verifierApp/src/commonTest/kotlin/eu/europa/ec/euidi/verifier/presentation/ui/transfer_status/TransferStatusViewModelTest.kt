@@ -18,6 +18,7 @@ package eu.europa.ec.euidi.verifier.presentation.ui.transfer_status
 
 import app.cash.turbine.test
 import dev.mokkery.MockMode
+import dev.mokkery.answering.calls
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.everySuspend
@@ -52,6 +53,7 @@ class TransferStatusViewModelTest : MviViewModelTest() {
     ): TransferStatusInteractor = mock(MockMode.autoUnit) {
         everySuspend { getRequestData(any()) } returns "Requesting: Full PID"
         everySuspend { getConnectionStatus(any()) } returns statusFlow
+        every { enableNfcEngagement(any()) } returns true
     }
 
     private fun resourceProvider(): ResourceProvider = mock {
@@ -248,37 +250,100 @@ class TransferStatusViewModelTest : MviViewModelTest() {
         }
 
     @Test
-    fun `Given a connection that reports an error When StartProximity is received Then it navigates back`() = runTest(testDispatcher) {
+    fun `Given a connection that reports an error When StartProximity is received Then it stays on screen with the log and stops the connection`() = runTest(testDispatcher) {
         // Given
         val interactor = transferInteractor(statusFlow = flowOf(TransferStatus.Error("boom")))
         val viewModel = viewModel(interactor = interactor)
         viewModel.setEvent(Event.Init(docs = docs))
 
-        viewModel.effect.test {
-            // When
-            viewModel.setEvent(Event.StartProximity)
+        // When
+        viewModel.setEvent(Event.StartProximity)
 
-            // Then
-            assertEquals(Effect.Navigation.GoBack, awaitItem())
-            cancelAndIgnoreRemainingEvents()
-        }
+        // Then
+        val state = viewModel.uiState.value
+        assertTrue(state.failed)
+        assertEquals(listOf("QR-kode skanna", "status"), state.statusLog)
+        verifySuspend { interactor.stopConnection() }
     }
 
     @Test
-    fun `Given a connection that reports a disconnect When StartProximity is received Then it navigates back`() = runTest(testDispatcher) {
+    fun `Given a connection that reports a disconnect When StartProximity is received Then it stays on screen with the log and stops the connection`() = runTest(testDispatcher) {
         // Given
         val interactor = transferInteractor(statusFlow = flowOf(TransferStatus.Disconnected))
         val viewModel = viewModel(interactor = interactor)
         viewModel.setEvent(Event.Init(docs = docs))
 
+        // When
+        viewModel.setEvent(Event.StartProximity)
+
+        // Then
+        val state = viewModel.uiState.value
+        assertTrue(state.failed)
+        assertEquals(listOf("QR-kode skanna", "status"), state.statusLog)
+        verifySuspend { interactor.stopConnection() }
+    }
+
+    @Test
+    fun `Given a failed transfer When a wallet is held against the tablet again Then a new transfer over NFC is started`() = runTest(testDispatcher) {
+        // Given
+        var onTagDiscovered: (() -> Unit)? = null
+        val interactor = transferInteractor(statusFlow = flowOf(TransferStatus.Error("TagLostException"))).apply {
+            every { enableNfcEngagement(any()) } calls { (callback: () -> Unit) ->
+                onTagDiscovered = callback
+                true
+            }
+        }
+        val viewModel = viewModel(interactor = interactor)
+        viewModel.setEvent(Event.Init(docs = docs))
+        viewModel.setEvent(Event.StartProximity)
+
         viewModel.effect.test {
             // When
-            viewModel.setEvent(Event.StartProximity)
+            onTagDiscovered?.invoke()
 
             // Then
-            assertEquals(Effect.Navigation.GoBack, awaitItem())
+            assertEquals(Effect.Navigation.RetryOverNfc, awaitItem())
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun `Given an error followed by a disconnect When StartProximity is received Then the failure is handled once`() = runTest(testDispatcher) {
+        // Given
+        val interactor = transferInteractor(
+            statusFlow = flowOf(TransferStatus.Error("TagLostException"), TransferStatus.Disconnected)
+        )
+        val viewModel = viewModel(interactor = interactor)
+        viewModel.setEvent(Event.Init(docs = docs))
+
+        // When
+        viewModel.setEvent(Event.StartProximity)
+
+        // Then
+        assertTrue(viewModel.uiState.value.failed)
+        verifySuspend(exactly(1)) { interactor.stopConnection() }
+        verify(exactly(1)) { interactor.enableNfcEngagement(any()) }
+    }
+
+    @Test
+    fun `Given a response followed by a disconnect When StartProximity is received Then it is not a failure`() = runTest(testDispatcher) {
+        // Given
+        val interactor = mock<TransferStatusInteractor>(MockMode.autoUnit) {
+            everySuspend { getRequestData(any()) } returns "Requesting: Full PID"
+            everySuspend { getConnectionStatus(any()) } returns flowOf(
+                TransferStatus.OnResponseReceived(ReceivedDocumentsDomain(documents = emptyList())),
+                TransferStatus.Disconnected
+            )
+            everySuspend { transformToReceivedDocumentsUi(any(), any()) } returns emptyList()
+        }
+        val viewModel = viewModel(interactor = interactor)
+        viewModel.setEvent(Event.Init(docs = docs))
+
+        // When
+        viewModel.setEvent(Event.StartProximity)
+
+        // Then
+        assertFalse(viewModel.uiState.value.failed)
     }
 
     @Test

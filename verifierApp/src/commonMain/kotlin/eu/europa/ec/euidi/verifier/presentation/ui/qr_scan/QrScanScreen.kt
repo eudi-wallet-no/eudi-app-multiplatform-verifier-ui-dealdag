@@ -16,6 +16,13 @@
 
 package eu.europa.ec.euidi.verifier.presentation.ui.qr_scan
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.ui.text.style.TextAlign
+import eudiverifier.verifierapp.generated.resources.Res
+import eudiverifier.verifierapp.generated.resources.qr_scan_screen_hint_qr
+import eudiverifier.verifierapp.generated.resources.qr_scan_screen_hint_qr_or_nfc
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -167,6 +174,21 @@ private fun Content(
                                 cap = StrokeCap.Square
                             )
                         }
+                )
+
+                Text(
+                    text = stringResource(
+                        if (state.nfcAvailable) Res.string.qr_scan_screen_hint_qr_or_nfc
+                        else Res.string.qr_scan_screen_hint_qr
+                    ),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .background(Color.Black.copy(alpha = 0.6f))
+                        .padding(all = 24.dp),
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.titleMedium,
                 )
             }
         }

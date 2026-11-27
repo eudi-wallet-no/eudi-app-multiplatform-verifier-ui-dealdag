@@ -24,6 +24,7 @@ import eu.europa.ec.euidi.verifier.core.controller.DataStoreControllerImpl.Compa
 import eu.europa.ec.euidi.verifier.core.controller.DataStoreControllerImpl.Companion.createDataStore
 import eu.europa.ec.euidi.verifier.core.controller.PlatformController
 import eu.europa.ec.euidi.verifier.core.controller.TransferController
+import eu.europa.ec.euidi.verifier.core.nfc.AndroidNfcEngagement
 import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.module
 
@@ -38,10 +39,15 @@ internal actual fun platformModule() = module {
         AndroidPlatformController(androidContext())
     }
 
+    // Created at start so it sees the activity resume and can turn on NFC reader mode
+    single(createdAtStart = true) {
+        AndroidNfcEngagement(androidContext())
+    }
     factory<TransferController> {
         AndroidTransferController(
             context = androidContext(),
-            resourceProvider = get()
+            resourceProvider = get(),
+            nfcEngagement = get()
         )
     }
 }
