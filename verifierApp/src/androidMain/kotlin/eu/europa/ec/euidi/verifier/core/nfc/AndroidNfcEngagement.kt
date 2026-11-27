@@ -1,5 +1,13 @@
 /*
- * Copyright (c) 2026 European Commission
+ * Copyright (c) 2026 Digitaliseringsdirektoratet (Digdir)
+ *
+ * NEW IN THE eudi-wallet-no FORK: this file is not part of the upstream EUDI proximity
+ * verifier by the European Commission.
+ *
+ * Contents: NFC device engagement (ISO/IEC 18013-5), independent of any particular credential
+ * or visual theme.
+ *
+ * As a work based on the upstream project, it is licensed like the rest of it:
  *
  * Licensed under the EUPL, Version 1.2 or - as soon they will be approved by the European
  * Commission - subsequent versions of the EUPL (the "Licence"); You may not use this work
@@ -14,7 +22,7 @@
  * governing permissions and limitations under the Licence.
  */
 
-package eu.europa.ec.euidi.verifier.core.controller
+package eu.europa.ec.euidi.verifier.core.nfc
 
 import android.app.Activity
 import android.app.Application
@@ -27,6 +35,7 @@ import android.os.Looper
 import androidx.core.content.ContextCompat
 import com.android.identity.android.mdoc.deviceretrieval.VerificationHelper
 import com.android.identity.android.mdoc.transport.DataTransportOptions
+import eu.europa.ec.eudi.verifier.core.transfer.TransferManager
 import org.multipaz.mdoc.connectionmethod.MdocConnectionMethod
 import org.multipaz.mdoc.connectionmethod.MdocConnectionMethodBle
 import org.multipaz.mdoc.role.MdocRole
@@ -45,9 +54,9 @@ import java.lang.ref.WeakReference
  * the NFC engagement and handover (ISO/IEC 18013-5, 8.2.2.1) are done right away, while the phone
  * is surely still in the field: by the time the transfer screen is ready the NFC link is often
  * gone (TagLostException). What the wallet answers is kept in a [PendingNfcEngagement] and played
- * back to the transfer manager when [AndroidTransferController] takes it over.
+ * back to the transfer manager when [eu.europa.ec.euidi.verifier.core.controller.AndroidTransferController] takes it over.
  *
- * This is a singleton: each screen gets its own [TransferController], and all of them have to see
+ * This is a singleton: each screen gets its own [eu.europa.ec.euidi.verifier.core.controller.TransferController], and all of them have to see
  * the same pending tag.
  */
 internal class AndroidNfcEngagement(context: Context) : Application.ActivityLifecycleCallbacks {
@@ -130,7 +139,7 @@ internal class AndroidNfcEngagement(context: Context) : Application.ActivityLife
         val techs = tag.techList.joinToString { it.substringAfterLast('.') }
         val callback = onTagDiscovered
         if (callback == null || pending != null) {
-            showStatus("Gå til framsida for å verifisere ein ny drikkebong")
+            showStatus("NFC: ingen skjerm ventar på ei lommebok no. Gå til framsida for å starte på nytt.")
             return
         }
         if (!tag.techList.contains(android.nfc.tech.IsoDep::class.java.name)) {
@@ -264,4 +273,22 @@ internal class BufferingListener(private val handler: Handler) : VerificationHel
         dispatch { it.onResponseReceived(deviceResponseBytes) }
 
     override fun onError(error: Throwable) = dispatch { it.onError(error) }
+}
+
+/**
+ * Puts the [VerificationHelper] that already did the NFC engagement into the transfer manager
+ * (verifier-core 0.1.0 has no NFC support of its own), and plays back what the wallet answered
+ * to the manager's own listener, which then connects over BLE and reports events as for QR.
+ */
+internal fun TransferManager.takeOverNfcEngagement(engagement: PendingNfcEngagement) {
+    val managerClass = this::class.java
+    val listener = managerClass.getDeclaredField("responseListener")
+        .apply { isAccessible = true }
+        .get(this) as VerificationHelper.Listener
+
+    managerClass.getDeclaredField("verificationHelper")
+        .apply { isAccessible = true }
+        .set(this, engagement.helper)
+
+    engagement.listener.attach(listener)
 }

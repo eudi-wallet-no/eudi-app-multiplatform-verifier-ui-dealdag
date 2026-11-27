@@ -17,7 +17,6 @@
 package eu.europa.ec.euidi.verifier.presentation.ui.show_document
 
 import androidx.lifecycle.viewModelScope
-import eu.europa.ec.euidi.verifier.domain.config.model.AttestationType
 import eu.europa.ec.euidi.verifier.domain.interactor.ShowDocumentsInteractor
 import eu.europa.ec.euidi.verifier.presentation.architecture.MviViewModel
 import eu.europa.ec.euidi.verifier.presentation.architecture.UiEffect
@@ -112,29 +111,4 @@ internal class ShowDocumentsViewModel(
             )
         }
     }
-}
-
-/** Whether the bar should accept the drikkebong that was shared, and if not, why. */
-internal enum class DrikkebongVerdict {
-    ACCEPTED,
-    MISSING,
-    INVALID,
-    NOT_TRUSTED,
-}
-
-/**
- * A drikkebong is accepted when one was received, its issuer and device signatures and data
- * integrity check out (ISO/IEC 18013-5, 9.3), and its issuer chains to a trusted certificate.
- */
-internal fun drikkebongVerdict(items: List<ReceivedDocumentUi>): DrikkebongVerdict {
-    val bonger = items.filter { it.documentType == AttestationType.Drikkebong }
-    if (bonger.isEmpty()) return DrikkebongVerdict.MISSING
-    val valid = bonger.filter {
-        with(it.documentValidity) {
-            isIssuerSignatureValid && isDeviceSignatureValid && isDataIntegrityIntact
-        }
-    }
-    if (valid.isEmpty()) return DrikkebongVerdict.INVALID
-    if (valid.none { it.isTrusted }) return DrikkebongVerdict.NOT_TRUSTED
-    return DrikkebongVerdict.ACCEPTED
 }

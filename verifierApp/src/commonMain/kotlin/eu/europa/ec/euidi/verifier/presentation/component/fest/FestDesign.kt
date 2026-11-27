@@ -1,5 +1,12 @@
 /*
- * Copyright (c) 2026 European Commission
+ * Copyright (c) 2026 Digitaliseringsdirektoratet (Digdir)
+ *
+ * NEW IN THE eudi-wallet-no FORK: this file is not part of the upstream EUDI proximity
+ * verifier by the European Commission.
+ *
+ * Contents: a seasonal visual theme for the demo screens; no verification or NFC logic.
+ *
+ * As a work based on the upstream project, it is licensed like the rest of it:
  *
  * Licensed under the EUPL, Version 1.2 or - as soon they will be approved by the European
  * Commission - subsequent versions of the EUPL (the "Licence"); You may not use this work
@@ -14,7 +21,7 @@
  * governing permissions and limitations under the Licence.
  */
 
-package eu.europa.ec.euidi.verifier.presentation.ui.home
+package eu.europa.ec.euidi.verifier.presentation.component.fest
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background

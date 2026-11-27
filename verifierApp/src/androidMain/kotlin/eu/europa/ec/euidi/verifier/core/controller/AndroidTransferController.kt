@@ -27,6 +27,8 @@ import eu.europa.ec.eudi.verifier.core.transfer.TransferConfig
 import eu.europa.ec.eudi.verifier.core.transfer.TransferEvent
 import eu.europa.ec.eudi.verifier.core.transfer.TransferManager
 import eu.europa.ec.euidi.verifier.core.extension.flattenedClaims
+import eu.europa.ec.euidi.verifier.core.nfc.AndroidNfcEngagement
+import eu.europa.ec.euidi.verifier.core.nfc.takeOverNfcEngagement
 import eu.europa.ec.euidi.verifier.core.provider.ResourceProvider
 import eu.europa.ec.euidi.verifier.core.utils.Constants
 import eu.europa.ec.euidi.verifier.domain.config.model.ClaimItem
@@ -167,24 +169,6 @@ internal class AndroidTransferController(
                 )
             )
         }
-    }
-
-    /**
-     * Puts the [VerificationHelper] that already did the NFC engagement into the transfer manager
-     * (verifier-core 0.1.0 has no NFC support of its own), and plays back what the wallet answered
-     * to the manager's own listener, which then connects over BLE and reports events as for QR.
-     */
-    private fun TransferManager.takeOverNfcEngagement(engagement: PendingNfcEngagement) {
-        val managerClass = this::class.java
-        val listener = managerClass.getDeclaredField("responseListener")
-            .apply { isAccessible = true }
-            .get(this) as VerificationHelper.Listener
-
-        managerClass.getDeclaredField("verificationHelper")
-            .apply { isAccessible = true }
-            .set(this, engagement.helper)
-
-        engagement.listener.attach(listener)
     }
 
     override fun sendRequest(

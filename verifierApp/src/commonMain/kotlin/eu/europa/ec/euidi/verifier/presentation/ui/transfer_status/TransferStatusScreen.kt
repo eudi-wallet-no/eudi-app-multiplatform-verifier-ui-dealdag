@@ -17,43 +17,25 @@
 package eu.europa.ec.euidi.verifier.presentation.ui.transfer_status
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.sp
-import androidx.navigationevent.NavigationEventInfo
-import androidx.navigationevent.compose.NavigationBackHandler
-import androidx.navigationevent.compose.rememberNavigationEventState
-import eu.europa.ec.euidi.verifier.core.utils.Constants as CoreConstants
-import eu.europa.ec.euidi.verifier.presentation.ui.home.FestColors
-import eu.europa.ec.euidi.verifier.presentation.ui.home.FestGoldButton
-import eu.europa.ec.euidi.verifier.presentation.ui.home.FestOrnaments
-import eudiverifier.verifierapp.generated.resources.transfer_back
-import eudiverifier.verifierapp.generated.resources.transfer_cancel
-import eudiverifier.verifierapp.generated.resources.transfer_failed_subtitle
-import eudiverifier.verifierapp.generated.resources.transfer_failed_title
-import eudiverifier.verifierapp.generated.resources.transfer_log_title
-import eudiverifier.verifierapp.generated.resources.transfer_waiting_subtitle
-import eudiverifier.verifierapp.generated.resources.transfer_waiting_title
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -63,11 +45,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import dev.icerock.moko.permissions.Permission
 import dev.icerock.moko.permissions.PermissionsController
 import dev.icerock.moko.permissions.bluetooth.BLUETOOTH_ADVERTISE
@@ -85,6 +74,9 @@ import eu.europa.ec.euidi.verifier.presentation.component.ErrorInfo
 import eu.europa.ec.euidi.verifier.presentation.component.content.ContentScreen
 import eu.europa.ec.euidi.verifier.presentation.component.content.ScreenNavigateAction
 import eu.europa.ec.euidi.verifier.presentation.component.content.ToolbarConfig
+import eu.europa.ec.euidi.verifier.presentation.component.fest.FestColors
+import eu.europa.ec.euidi.verifier.presentation.component.fest.FestGoldButton
+import eu.europa.ec.euidi.verifier.presentation.component.fest.FestOrnaments
 import eu.europa.ec.euidi.verifier.presentation.component.loader.LoadingIndicator
 import eu.europa.ec.euidi.verifier.presentation.component.preview.PreviewTheme
 import eu.europa.ec.euidi.verifier.presentation.component.preview.ThemeModePreviews
@@ -108,11 +100,19 @@ import eu.europa.ec.euidi.verifier.presentation.ui.transfer_status.TransferStatu
 import eu.europa.ec.euidi.verifier.presentation.utils.Constants
 import eudiverifier.verifierapp.generated.resources.Res
 import eudiverifier.verifierapp.generated.resources.generic_cancel
+import eudiverifier.verifierapp.generated.resources.transfer_back
+import eudiverifier.verifierapp.generated.resources.transfer_cancel
+import eudiverifier.verifierapp.generated.resources.transfer_failed_subtitle
+import eudiverifier.verifierapp.generated.resources.transfer_failed_title
+import eudiverifier.verifierapp.generated.resources.transfer_log_title
 import eudiverifier.verifierapp.generated.resources.transfer_status_screen_no_permissions
 import eudiverifier.verifierapp.generated.resources.transfer_status_screen_request_status
 import eudiverifier.verifierapp.generated.resources.transfer_status_screen_title
+import eudiverifier.verifierapp.generated.resources.transfer_waiting_subtitle
+import eudiverifier.verifierapp.generated.resources.transfer_waiting_title
 import kotlinx.coroutines.flow.Flow
 import org.jetbrains.compose.resources.stringResource
+import eu.europa.ec.euidi.verifier.core.utils.Constants as CoreConstants
 
 @Composable
 internal fun TransferStatusScreen(

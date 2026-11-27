@@ -44,6 +44,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import eu.europa.ec.euidi.verifier.presentation.component.AppIcons
+import eu.europa.ec.euidi.verifier.presentation.component.fest.FEST_ILLUSTRATION_ASPECT_RATIO
+import eu.europa.ec.euidi.verifier.presentation.component.fest.FestColors
+import eu.europa.ec.euidi.verifier.presentation.component.fest.FestGoldButton
+import eu.europa.ec.euidi.verifier.presentation.component.fest.FestIllustration
+import eu.europa.ec.euidi.verifier.presentation.component.fest.FestOrnaments
 import eu.europa.ec.euidi.verifier.presentation.component.utils.LifecycleEffect
 import eu.europa.ec.euidi.verifier.presentation.component.wrap.WrapIconButton
 import eu.europa.ec.euidi.verifier.presentation.model.RequestedDocsHolder
